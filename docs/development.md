@@ -38,7 +38,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 
 ## 版本
 
-当前 `0.1.0-preview.8` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。产品名与应用程序集名为 Forma；源码命名空间、解决方案名和旧数据目录沿用 IconAdapt。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
+当前 `0.1.0-preview.9` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。产品名与应用程序集名为 Forma；源码命名空间、解决方案名和旧数据目录沿用 IconAdapt。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
 
 正式发布前仍需人工验证真实桌面更新、多 DPI、更多应用图标和文件权限场景，明确安装 / 卸载、代码签名、许可证和自动更新策略。没有正式发布授权时不创建版本标签。
 
@@ -52,3 +52,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 四者无需额外测试框架，失败返回非零退出码。输出图片、ICO、快捷方式和记录保留在 `.local` 便于调查，不会提交。
 
 UI 测试通过仅向测试程序集开放的构造入口加载真实 BAML 资源，并拦截 WPF 自动排队的 `OnStartup`，禁止创建正式桌面服务或解析测试参数。`IconAdapt.App.Smoke --motion` 只运行动效检查；`--motion` 不是 Forma 的启动参数。布局检查禁用动效以检查最终边界，动效检查单独验证过渡与最终像素。
+
+`IconAdapt.App.Smoke --desktop-preview` 单独检查整体预览，输出压力状态及六枚健康合成图标的浅 / 深截图；此参数同样只属于测试程序，不能传给 Forma。图像验证中的 `ShapeAdaptationChecks` 检查形态与安全区；旧版算法基线仅保存在 `.local`，存在同设置基线时才绘制新旧对照行。

@@ -16,6 +16,7 @@ internal static class Program
         try
         {
             if (args.Contains("--motion", StringComparer.OrdinalIgnoreCase)) MotionChecks.Run();
+            else if (args.Contains("--desktop-preview", StringComparer.OrdinalIgnoreCase)) DesktopPreviewChecks.Run();
             else Run();
             return 0;
         }
@@ -108,6 +109,7 @@ internal static class Program
         RestoreDefaultsVmChecks.Run(png, renderer, root);
         LayoutChecks.Run();
         MotionChecks.Run();
+        DesktopPreviewChecks.Run();
     }
 
     private static byte[] Draw(NativePixelImage control, int size)

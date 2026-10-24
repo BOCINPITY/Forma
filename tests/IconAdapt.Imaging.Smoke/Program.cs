@@ -136,6 +136,7 @@ Parallel.For(0, 12, _ =>
 checks++;
 checks += QualityChecks.Run(renderer, output);
 checks += MacMaterialChecks.Run(renderer, output);
+checks += ShapeAdaptationChecks.Run(renderer, output);
 
 var fixtures = new Dictionary<string, byte[]>
 {

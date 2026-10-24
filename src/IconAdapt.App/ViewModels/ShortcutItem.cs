@@ -31,6 +31,8 @@ public sealed class ShortcutItem : ObservableObject
     private IReadOnlyDictionary<int, BitmapSource> outputFrames = new Dictionary<int, BitmapSource>();
     private int previewPixelSize = 48;
     public BitmapSource? Preview => Frame(previewPixelSize);
+    public BitmapSource? DesktopImage => Preview ?? Original;
+    public string DesktopStatus => Preview != null ? "" : "未生成，显示原图";
     public BitmapSource? DisplayImage => Frame(48) ?? OriginalFrame(48);
     public bool HasExactPreviewFrame => outputFrames.ContainsKey(previewPixelSize);
     public string PreviewHint => Rendered == null ? "请选择图标，等待实际尺寸预览。" : HasExactPreviewFrame
@@ -56,6 +58,7 @@ public sealed class ShortcutItem : ObservableObject
         Rendered = result;
         outputFrames = frames ?? new Dictionary<int, BitmapSource>();
         Changed(nameof(Preview)); Changed(nameof(DisplayImage)); Changed(nameof(HasExactPreviewFrame)); Changed(nameof(PreviewHint));
+        Changed(nameof(DesktopImage)); Changed(nameof(DesktopStatus));
         Changed(nameof(SourceQualityNotice));
         Changed(nameof(HasRenderNotes)); Changed(nameof(RenderNotes));
         Changed(nameof(QualitySummary));
@@ -66,6 +69,7 @@ public sealed class ShortcutItem : ObservableObject
         previewPixelSize = pixels;
         Changed(nameof(Preview)); Changed(nameof(HasExactPreviewFrame)); Changed(nameof(PreviewHint));
         Changed(nameof(Original)); Changed(nameof(SourceSizeLabel));
+        Changed(nameof(DesktopImage)); Changed(nameof(DesktopStatus));
     }
     private BitmapSource? Frame(int pixels) => outputFrames.TryGetValue(pixels, out var exact) ? exact :
         outputFrames.OrderBy(x => x.Key >= pixels ? x.Key - pixels : 10000 + pixels - x.Key).FirstOrDefault().Value;

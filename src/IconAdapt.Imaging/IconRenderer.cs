@@ -18,7 +18,8 @@ public sealed class IconRenderer : IIconRenderer
         ArgumentNullException.ThrowIfNull(style);
         ArgumentNullException.ThrowIfNull(nativeFrames);
         var color = ValidateStyle(style);
-        var primary = Prepare(sourcePng, style.CropTransparent);
+        bool mac = style.Backdrop == BackdropStyle.MacOS;
+        var primary = Prepare(sourcePng, style.CropTransparent, mac);
         var sources = new List<PreparedSource> { primary };
         long byteBudget = 32 * 1024 * 1024L - sourcePng.Length;
         long pixelBudget = 16 * 1024 * 1024L - primary.PixelCount;
@@ -37,28 +38,33 @@ public sealed class IconRenderer : IIconRenderer
             byteBudget -= frame.Png.Length;
             try
             {
-                var prepared = Prepare(frame.Png, style.CropTransparent, frame.PixelWidth, frame.PixelHeight);
+                var prepared = Prepare(frame.Png, style.CropTransparent, mac, frame.PixelWidth, frame.PixelHeight);
                 pixelBudget -= prepared.PixelCount;
                 sources.Add(prepared);
             }
             catch (ArgumentException) { skipped = true; }
         }
+        var plans = sources.Select(source => (Source: source, Scale: mac
+            ? MacIconMaterial.ContentScale(style, primary.Appearance, source.Appearance) : style.ContentScale)).ToArray();
         var frames = IconSizes.Select(size =>
         {
             // Keep the canonical source for the 256 px preview/ICO. Small native resources
             // can contain deliberately simplified artwork; select by actual drawn span,
             // not metadata dimensions, so transparent padding cannot trigger enlargement.
-            double target = size * (style.Backdrop == BackdropStyle.MacOS
-                ? MacIconMaterial.ContentScale(style, primary.Appearance) : style.ContentScale);
-            var selected = size == 256 ? primary : sources.Where(source => source.Span >= target)
-                .OrderBy(source => source.Span).FirstOrDefault() ?? sources.MaxBy(source => source.Span)!;
-            return style.Backdrop == BackdropStyle.MacOS
-                ? MacIconMaterial.Render(selected.Pixels, primary.Appearance, style, size)
-                : RenderFrame(selected.Pixels, style, color, size);
+            var candidates = plans.Where(plan => plan.Source.Span >= size * plan.Scale).OrderBy(plan => plan.Source.Span).ToArray();
+            var selected = size == 256 ? plans[0] : candidates.Length > 0 ? candidates[0] : plans.MaxBy(plan => plan.Source.Span);
+            return mac
+                ? MacIconMaterial.Render(selected.Source.Pixels, primary.Appearance, style, size, selected.Scale)
+                : RenderFrame(selected.Source.Pixels, style, color, size);
         }).ToArray();
         var notes = new List<string>();
-        if (256 * style.ContentScale > primary.Span * 1.05)
+        double effectiveScale = style.Backdrop == BackdropStyle.MacOS ? MacIconMaterial.ContentScale(style, primary.Appearance) : style.ContentScale;
+        if (256 * effectiveScale > primary.Span * 1.05)
             notes.Add("原图可见图案分辨率较低，放大后无法补回细节。");
+        if (style.Backdrop == BackdropStyle.MacOS && primary.Appearance.Shape == MacIconMaterial.ShapeKind.FineOrComplex)
+            notes.Add("细线或复杂图案在小尺寸下仍会损失细节，建议先检查 32 / 48px 效果。");
+        if (style.Backdrop == BackdropStyle.MacOS && !primary.Appearance.HasPlate && effectiveScale + .01 < style.ContentScale)
+            notes.Add("为保留图案边缘，已按实际轮廓留出安全区。");
         if (style.ContentScale < 0.65)
             notes.Add("图案占比较小，小尺寸下的细节可能更难辨认。");
         if (style.Backdrop is BackdropStyle.Gradient or BackdropStyle.Solid && style.ContentScale >= 0.8)
@@ -68,7 +74,7 @@ public sealed class IconRenderer : IIconRenderer
         return new RenderResult(frames[^1], EncodeIcon(frames)) { Notes = notes };
     }
 
-    private static PreparedSource Prepare(byte[] sourcePng, bool crop, int expectedWidth = 0, int expectedHeight = 0)
+    private static PreparedSource Prepare(byte[] sourcePng, bool crop, bool analyzeShape, int expectedWidth = 0, int expectedHeight = 0)
     {
         if (sourcePng.Length is < 24 or > 32 * 1024 * 1024 || !sourcePng.AsSpan(0, 8).SequenceEqual(PngSignature))
             throw new ArgumentException("输入必须是有效 PNG，且不得超过 32 MiB。", nameof(sourcePng));
@@ -89,7 +95,8 @@ public sealed class IconRenderer : IIconRenderer
         var visible = FindVisibleBounds(bitmap);
         var bounds = crop ? visible : new SKRectI(0, 0, bitmap.Width, bitmap.Height);
         var source = new PixelResampler(bitmap, bounds);
-        return new(source, Math.Max(bounds.Width, bounds.Height), info.Width, info.Height, MacIconMaterial.Analyze(bitmap, visible));
+        return new(source, Math.Max(bounds.Width, bounds.Height), info.Width, info.Height,
+            analyzeShape ? MacIconMaterial.Analyze(bitmap, visible, bounds) : default);
     }
 
     private sealed record PreparedSource(PixelResampler Pixels, int Span, int Width, int Height, MacIconMaterial.SourceAppearance Appearance)

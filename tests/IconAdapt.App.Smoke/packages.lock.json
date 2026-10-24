@@ -24,9 +24,9 @@
       "Forma": {
         "type": "Project",
         "dependencies": {
-          "IconAdapt.Core": "[0.1.0-preview.8, )",
-          "IconAdapt.Imaging": "[0.1.0-preview.8, )",
-          "IconAdapt.Windows": "[0.1.0-preview.8, )"
+          "IconAdapt.Core": "[0.1.0-preview.9, )",
+          "IconAdapt.Imaging": "[0.1.0-preview.9, )",
+          "IconAdapt.Windows": "[0.1.0-preview.9, )"
         }
       },
       "iconadapt.core": {
@@ -35,7 +35,7 @@
       "iconadapt.imaging": {
         "type": "Project",
         "dependencies": {
-          "IconAdapt.Core": "[0.1.0-preview.8, )",
+          "IconAdapt.Core": "[0.1.0-preview.9, )",
           "SkiaSharp": "[4.153.1, 4.153.1]",
           "SkiaSharp.NativeAssets.Win32": "[4.153.1, 4.153.1]"
         }
@@ -43,7 +43,7 @@
       "iconadapt.windows": {
         "type": "Project",
         "dependencies": {
-          "IconAdapt.Core": "[0.1.0-preview.8, )"
+          "IconAdapt.Core": "[0.1.0-preview.9, )"
         }
       }
     },

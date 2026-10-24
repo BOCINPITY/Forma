@@ -57,6 +57,24 @@ public partial class MainWindow : Window
         else SystemCommands.MaximizeWindow(this);
     }
     private void CloseWindow(object sender, RoutedEventArgs e) => Close();
+
+    public void ShowDesktopPreview(bool show)
+    {
+        GalleryContent.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        DesktopPreviewSurface.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        GalleryModeButton.Background = show ? Brushes.Transparent : Brushes.White;
+        DesktopModeButton.Background = show ? Brushes.White : Brushes.Transparent;
+        WorkspaceHint.Text = show ? "点击图标查看右侧对比 · 在图标库调整勾选" : "点击图标查看对比 · 勾选后批量应用";
+    }
+
+    private void ShowGalleryMode(object sender, RoutedEventArgs e) => ShowDesktopPreview(false);
+    private void ShowDesktopMode(object sender, RoutedEventArgs e) => ShowDesktopPreview(true);
+    private void ReturnToGallery(object sender, RoutedEventArgs e)
+    {
+        ShowDesktopPreview(false);
+        GalleryModeButton.Focus();
+    }
+
     private void ShowNoticeDetails(object sender, RoutedEventArgs e)
     {
         NoticeExpander.IsExpanded = true;

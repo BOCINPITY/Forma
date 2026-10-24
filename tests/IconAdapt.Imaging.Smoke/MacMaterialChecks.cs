@@ -108,7 +108,9 @@ internal static class MacMaterialChecks
         foreach (var input in new[] { sources["Circular mark"], diamond })
         {
             using var bitmap = SKBitmap.Decode(renderer.Render(input, mac).PreviewPng);
-            var edge = bitmap.GetPixel(128, 20);
+            // Shape-aware circular marks are optically larger than the former uniform 80%.
+            // The outer material strip must still be pale rather than filled as an existing tile.
+            var edge = bitmap.GetPixel(128, 17);
             Check(edge.Red > 220 && edge.Green > 220 && edge.Blue > 220,
                 "Circular and freeform marks must not be misclassified as opaque rectangular tiles.");
         }
