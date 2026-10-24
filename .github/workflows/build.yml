@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.402'
+      - name: Locked restore, Release build and smoke checks
+        run: .\scripts\check.ps1
+      - name: Package portable Windows x64 build
+        run: .\scripts\publish.ps1 -Zip
+      - name: Upload portable package and checksum
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Forma-win-x64-${{ github.sha }}
+          path: |
+            artifacts/Forma-*-win-x64.zip
+            artifacts/Forma-*-win-x64.zip.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

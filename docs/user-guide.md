@@ -1,5 +1,7 @@
 # Forma 使用说明
 
+[文档导航](README.md) · [English](en/user-guide.md)
+
 Forma 是 Windows 桌面图标适配工具，原名 IconAdapt。第一版处理普通 `.lnk` 应用快捷方式，可以预览、批量设置图标，并通过操作记录恢复。
 
 ## 启动
@@ -62,7 +64,7 @@ Forma 是 Windows 桌面图标适配工具，原名 IconAdapt。第一版处理�
 可指定自建快捷方式目录及独立数据目录，避免混入真实桌面操作记录：
 
 ```powershell
-.\scripts\run.ps1 -ScanFolder 'E:\local\IconAdapt\.local\demo' -DataRoot 'E:\local\IconAdapt\.local\demo-data'
+.\scripts\run.ps1 -ScanFolder (Join-Path $PWD '.local\demo') -DataRoot (Join-Path $PWD '.local\demo-data')
 ```
 
 自动化验证使用项目 `.local` 下的测试目录，不会替换真实桌面图标。

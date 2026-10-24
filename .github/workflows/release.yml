@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing version tag, for example v0.1.0-preview.9'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+      - name: Validate existing tag against project version
+        id: version
+        env:
+          REQUESTED_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:REQUESTED_TAG
+          if ($tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$') {
+            throw 'Expected a version tag such as v0.1.0-preview.9.'
+          }
+          $version = [string]([xml](Get-Content -LiteralPath Directory.Build.props -Raw)).Project.PropertyGroup.Version
+          if ($tag -cne "v$version") { throw 'Tag does not match Directory.Build.props.' }
+          $tagCommit = & git rev-parse --verify "refs/tags/$tag^{commit}"
+          if ($LASTEXITCODE -ne 0) { throw 'The requested tag does not exist.' }
+          $headCommit = & git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $headCommit -ne $tagCommit) { throw 'Checkout does not match the requested tag.' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.402'
+      - name: Locked restore, Release build and smoke checks
+        run: .\scripts\check.ps1
+      - name: Package portable Windows x64 build
+        run: .\scripts\publish.ps1 -Zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-package
+          path: |
+            artifacts/Forma-${{ steps.version.outputs.version }}-win-x64.zip
+            artifacts/Forma-${{ steps.version.outputs.version }}-win-x64.zip.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    needs: package
+    runs-on: windows-2025
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-package
+          path: release-assets
+      - name: Verify checksum and publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.package.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.package.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageName = "Forma-$env:RELEASE_VERSION-win-x64.zip"
+          $archivePath = Join-Path 'release-assets' $packageName
+          $checksumPath = "$archivePath.sha256"
+          $expected = (Get-Content -LiteralPath $checksumPath -Raw).Trim()
+          $actual = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($expected -cne "$actual  $packageName") { throw 'Package checksum mismatch.' }
+          $isPrerelease = $env:RELEASE_VERSION.Contains('-')
+          $notes = @"
+          ## 中文
+          Windows x64 自包含便携版：下载 ZIP，完整解压后启动 Forma.exe；无需安装 .NET。
+          随包提供中英文使用说明、MIT 许可证及第三方声明。先预览再应用，应用后请保留 %LOCALAPPDATA%\IconAdapt 数据目录。
+          本版无安装程序、代码签名或自动更新。SHA-256 校验文件见附件；变更记录见仓库 CHANGELOG.md。
+
+          ## English
+          Self-contained portable Windows x64 build: download and fully extract the ZIP, then run Forma.exe. No separate .NET installation is required.
+          Includes Chinese and English guides, the MIT license, and third-party notices. Preview before applying; preserve %LOCALAPPDATA%\IconAdapt after applying icons.
+          No installer, code signing, or automatic updates. The SHA-256 checksum is attached; see CHANGELOG.md in the repository for changes.
+          "@
+          $notesPath = Join-Path $env:RUNNER_TEMP 'forma-release-notes.md'
+          Set-Content -LiteralPath $notesPath -Value $notes -Encoding utf8
+          $commonArguments = @('--repo', $env:GH_REPO, '--title', "Forma $env:RELEASE_VERSION", '--notes-file', $notesPath)
+          & gh release view $env:RELEASE_TAG --repo $env:GH_REPO --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            & gh release edit $env:RELEASE_TAG @commonArguments "--prerelease=$($isPrerelease.ToString().ToLowerInvariant())"
+          } else {
+            $createArguments = @('--verify-tag')
+            if ($isPrerelease) { $createArguments += '--prerelease' }
+            & gh release create $env:RELEASE_TAG @commonArguments @createArguments
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create or update the GitHub Release.' }
+          & gh release upload $env:RELEASE_TAG $archivePath $checksumPath --repo $env:GH_REPO --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload release assets.' }

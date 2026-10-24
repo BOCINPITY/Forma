@@ -1,87 +1,91 @@
+<p align="center">
+  <img src="src/IconAdapt.App/Assets/IconAdapt.svg" width="112" alt="Forma 的代码绘制标志">
+</p>
+
 # Forma
 
-面向 Windows 的桌面图标适配 App，让不同应用的图标在视觉大小、底板和留白上保持协调。
+**让 Windows 桌面图标更协调。** 原生桌面应用，统一图标的视觉大小、留白和底板，同时保留应用的识别特征。
 
-## 当前状态
+**简体中文** · [English](README.en.md)
 
-当前版本：`0.1.0-preview.9`。新增桌面整体预览，可在浅色 / 深色背景下比较整组原图和适配效果；macOS 质感按图标形态调整视觉大小与留白。“恢复默认图标”可将连续多次适配一键还原到首次适配前。界面保留短时动效并跟随 Windows 动画偏好，应用标志完全由代码绘制。
+[![Build](https://github.com/BOCINPITY/Forma/actions/workflows/build.yml/badge.svg)](https://github.com/BOCINPITY/Forma/actions/workflows/build.yml)
+[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4)
+![Preview](https://img.shields.io/badge/version-0.1.0--preview.9-orange)
 
-已实现桌面 / 文件夹扫描、图标网格选择、实时前后对比、macOS 质感 / 渐变 / 纯色 / 透明底板、大小与圆角调整、多尺寸 ICO、批量应用、自动备份与一键恢复默认图标。
+[下载便携版](https://github.com/BOCINPITY/Forma/releases) · [使用说明](docs/user-guide.md) · [开发文档](docs/development.md) · [English guide](docs/en/user-guide.md)
 
-Release 构建及图像、Windows COM、跨模块集成验证已通过；WPF 界面已启动并渲染检查。自动写入验证均使用自建快捷方式，没有修改真实桌面。详见 [验证记录](docs/verification.md)。
+![Forma 桌面整体预览，六枚代码绘制的演示图标](docs/images/desktop-preview-light.png)
 
-## 直接使用
+## 能做什么
 
-构建好的便携版位于 `artifacts\Forma-0.1.0-preview.9-win-x64\`，完整保留该文件夹，双击 `Forma.exe` 启动。自包含 Windows x64 包无需另装 .NET SDK。按版本分别输出，避免覆盖仍在运行的旧程序。
+- **先看整组效果**：浅 / 深背景、原始 / 适配切换、32 / 48 / 64 / 96px 实际像素预览。
+- **按形态适配**：macOS 质感区分已有底板、圆形、透明标志及细线 / 复杂图案，保守调整视觉大小和安全留白；另有渐变、纯色、透明模式。
+- **保留清晰细节**：读取原生尺寸图标，逐尺寸生成 ICO，用实际导出帧预览，避免重复缩放。
+- **批量应用，一键还原**：写入前自动备份，保留启动目标、参数等属性；连续多次适配可以统一恢复。
+- **原生、离线**：C# / .NET 10 / WPF；macOS 风格表面、短时动效，应用标志全部由代码绘制，无需模型服务。
 
-Forma 原名 IconAdapt。升级后沿用 `%LOCALAPPDATA%\IconAdapt\` 中的原有设置、备份和恢复记录；无需迁移或改名数据目录。源码目录与模块命名也保留原技术名称。
+| 图标库与实际像素对比 | 深色背景的整体预览 |
+| --- | --- |
+| ![图标库与检查器](docs/images/workspace.png) | ![深色背景预览](docs/images/desktop-preview-dark.png) |
 
-想使用新外观，点击检查器中的 **“macOS 预设”**，再比较 32 / 48px 的实际输出。预设会自动配色、使用连续圆角，并保守识别已有底板以减少重复套框。新安装默认启用；升级保留旧风格，点击预设后才切换。原图确实较小时会提示限制。详见 [清晰度设计与验收](docs/icon-quality.md)。
+图片使用自绘合成图标与演示状态。桌面预览模拟背景和排列，不读取壁纸或移动桌面图标；窗口材质由 WPF 绘制。
 
-先预览，再应用；点击顶部“恢复默认图标”还原此数据目录中所有适配过的快捷方式，包括其他文件夹中的项目，不受当前勾选范围限制。恢复的是首次适配前的图标引用，包含用户原有自定义图标。**应用后请保留 `%LOCALAPPDATA%\IconAdapt\` 数据目录**，快捷方式会持续引用这里生成的图标。详见 [使用说明](docs/user-guide.md)。
+## 下载与使用
 
-当前没有安装程序、自动更新和代码签名，不是正式发布版。
+1. 在 [Releases](https://github.com/BOCINPITY/Forma/releases) 下载 `Forma-<版本>-win-x64.zip`，**完整解压**后运行 `Forma.exe`，无需另装 .NET。
+2. 扫描桌面或选择快捷方式文件夹，勾选项目，点击 **macOS 预设** 或调整风格。
+3. 先用桌面预览看整体，再用右侧 32 / 48px 对比检查细节；满意后点击 **应用选中图标**。
+4. 如需还原，点击 **恢复默认图标**，自动恢复到 Forma 首次修改前的图标引用，包含原有自定义图标。
 
-![使用合成图标与测试状态的实际界面](docs/images/workspace.png)
+当前版本为 **`0.1.0-preview.9`**，面向 Windows x64，优先验证 Windows 11。便携包尚未签名，无安装程序或自动更新。升级时关闭旧窗口再运行新版。
 
-整组效果可在[桌面预览](docs/ui-design.md)中比较浅 / 深背景，输出清晰度仍用右侧实际像素对比检查。
+**应用后保留 `%LOCALAPPDATA%\IconAdapt\`。** 这里保存 ICO、备份和操作记录，快捷方式会持续引用生成的 ICO。卸载或清理数据前先恢复图标。Forma 原名 IconAdapt，沿用旧数据目录以保持已有恢复链可用。
 
-## 支持范围
+支持桌面 / 指定文件夹中的普通 `.lnk`，当前仅适配可访问 `.exe` 的应用入口；扫描不递归。不覆盖任务栏、开始菜单、文件关联、系统特殊图标或商店应用专用入口。公共桌面权限不足会逐项提示，不自动提权、重启 Explorer 或清理全局缓存。低清原图无法凭空补出细节；更多限制见[使用说明](docs/user-guide.md)和[清晰度设计](docs/icon-quality.md)。
 
-- 用户桌面和公共桌面的普通 `.lnk`，或用户指定文件夹中的 `.lnk`；不递归扫描。
-- 当前仅适配目标是可访问 `.exe` 的普通应用快捷方式。
-- 预览只读；应用前保存原始快捷方式副本和操作记录。
-- 冲突时保留文件并说明原因；多次适配由程序自动从新到旧恢复，结果在当前页展开查看。
+## 从源码构建
 
-任务栏、开始菜单、系统特殊图标、商店应用专用入口、文件关联和文件夹图标不在当前范围内。拒绝符号链接和目录联接；公共桌面写入权限不足时逐项报错。macOS 质感使用保守的底板识别和自动取色规则，异形或半透明图标仍可能需要手动选择其他模式及调整比例。
-
-## 技术栈
-
-C# / .NET 10、WPF / XAML、SkiaSharp 4.153.1、Windows Shell COM / Win32，以及本地 JSON 操作记录。项目固定 NuGet 版本并提交依赖锁文件，第三方许可见 [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES.md)。
-
-## 开发启动
-
-需要 Windows x64 和 Git。已有 .NET 10 SDK 可直接使用；也可以下载经过 SHA-512 校验的项目本地 SDK，不修改系统 PATH：
+需要 Windows x64、Git 和 .NET 10 SDK。所有脚本使用 PowerShell。
 
 ```powershell
-Set-Location 'E:\local\IconAdapt'
+git clone https://github.com/BOCINPITY/Forma.git
+Set-Location .\Forma
+# 可选：下载并校验项目本地 SDK，不修改系统 PATH
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run.ps1
 ```
 
-生成自包含便携包和 ZIP：
+生成包含运行时、双语使用说明、MIT 及第三方许可的便携包：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 ```
 
-SDK、测试文件和构建产物保存在忽略提交的 `.local` / `artifacts` 下。脚本优先使用项目本地 SDK，其次查找 PATH 中的 `dotnet`。
+输出位于 `artifacts\Forma-<版本>-win-x64\`，旁边生成 ZIP 和 `.sha256`。SDK、构建产物和测试数据不会提交。
 
-## 目录与文档
+## 自动构建与发布
 
-```text
-src/IconAdapt.App/            WPF 界面与 MVVM
-src/IconAdapt.Core/           共享模型和接口
-src/IconAdapt.Imaging/        SkiaSharp 图标渲染及 ICO 编码
-src/IconAdapt.Windows/        STA Shell 操作、备份与恢复
-tests/                       图像、Windows 和端到端验证程序
-scripts/                     SDK / 构建 / 启动 / 打包
-docs/                        产品、架构、开发和使用文档
-licenses/                    上游许可原文
-```
+- [Build](.github/workflows/build.yml)：`main` 提交、PR 或手动运行，构建验证并上传便携包为 Actions artifact。
+- [Release](.github/workflows/release.yml)：推送 `v<版本>` 标签，或手动指定已有标签，自动打包并上传 GitHub Release。标签必须与 `Directory.Build.props` 中的版本一致。
+- 带 `preview` 等后缀的版本自动标记为 **Pre-release**；目前仅提供 Windows x64 自包含 ZIP 和 SHA-256 校验文件。
 
-- [使用说明](docs/user-guide.md)
-- [应用失败排查与解决方案](docs/troubleshooting-apply.md)
-- [清晰度设计与验收](docs/icon-quality.md)
-- [界面设计](docs/ui-design.md)
-- [品牌、字体与代码图标](docs/brand.md)
-- [产品范围](docs/product.md)
-- [技术架构](docs/architecture.md)
-- [技术选型记录](docs/adr/0001-windows-native-stack.md)
-- [开发与版本管理](docs/development.md)
-- [路线图](docs/roadmap.md)
-- [验证记录](docs/verification.md)
-- [变更记录](CHANGELOG.md)
+具体发布步骤和权限见[发布说明](docs/releases.md)。Actions 成功状态以仓库页面为准，构建通过不代表所有真实桌面效果均已验收。
 
-Git 在本地管理，未配置远程或推送；项目自身的开源许可证尚未决定。工具不分发 Apple 图标或未经授权的应用图标素材。
+## 文档与贡献
+
+| 中文 | English |
+| --- | --- |
+| [文档导航](docs/README.md) | [Documentation](docs/en/README.md) |
+| [使用说明](docs/user-guide.md) | [User guide](docs/en/user-guide.md) |
+| [开发指南](docs/development.md) | [Development](docs/en/development.md) |
+| [技术架构](docs/architecture.md) | [Architecture](docs/en/architecture.md) |
+| [清晰度与形态适配](docs/icon-quality.md) | [Icon quality](docs/en/icon-quality.md) |
+| [发布说明](docs/releases.md) | [Release guide](docs/releases.md#english) |
+
+另见[界面设计与动效](docs/ui-design.md)、[品牌与代码图标](docs/brand.md)、[验证记录](docs/verification.md)、[路线图](docs/roadmap.md)和[变更记录](CHANGELOG.md)。欢迎通过 [Issues](https://github.com/BOCINPITY/Forma/issues) 与 PR 反馈，提交前请阅读[贡献指南](CONTRIBUTING.md)。
+
+## 许可
+
+Forma 源码与原创资源采用 [MIT License](LICENSE)。.NET、SkiaSharp / Skia 等依赖保留各自许可与声明，见 [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES.md) 和 [licenses](licenses/README.md)。工具不分发 Apple 图标或第三方应用图标包；用户应用图标的权利归其原作者或权利人所有。

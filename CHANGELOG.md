@@ -2,7 +2,18 @@
 
 采用语义化版本。开发中的修改记入 Unreleased，正式发布时再归档。
 
-## Unreleased — 0.1.0-preview.9
+## Unreleased
+
+后续变更记录于此。 / Future changes are tracked here.
+
+## 0.1.0-preview.9 — 2026-10-24
+
+### 开源与分发 / Open source and distribution
+
+- 采用 MIT 协议，在 GitHub 公开源码；补全中英文图文首页、使用 / 开发 / 架构 / 画质指南和贡献说明。
+- GitHub Actions 自动构建检查并上传便携包；版本标签或手动运行发布 ZIP / SHA-256，预览版本标记为 Pre-release。
+- 便携包包含可离线查看的双语图文文档、MIT LICENSE、第三方许可和构建信息。
+- MIT-licensed public source, illustrated Chinese and English documentation, automated Windows builds and tag-based prereleases with ZIP / SHA-256 assets.
 
 ### 整体预览与形态适配
 

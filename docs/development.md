@@ -1,11 +1,14 @@
 # 开发与版本管理
 
+[文档导航](README.md) · [English](en/development.md)
+
 ## 环境与命令
 
 Windows x64、Git 和 .NET 10 SDK；首轮目标 Windows 11。终端使用 PowerShell。
 
 ```powershell
-Set-Location 'E:\local\IconAdapt'
+git clone https://github.com/BOCINPITY/Forma.git
+Set-Location .\Forma
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run.ps1
@@ -16,12 +19,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 
 `check.ps1` 执行解决方案 restore、Release build 和四个验证程序；`-SkipSmoke` 仅构建。测试仅创建 / 修改 `.local` 中的快捷方式；集成测试还会只读扫描实际桌面，控制台仅输出计数。不能把构建通过视作桌面效果已验证。
 
-开发便携版由 `publish.ps1` 生成到 `artifacts\Forma-<版本>-win-x64`，入口为 `Forma.exe`，包含运行时、原生库、使用说明、许可和构建信息。按版本输出，避免覆盖运行中的旧版。`-Zip` 额外生成 ZIP 与 SHA-256 文件。不要提交 SDK、输出包或用户数据。
+开发便携版由 `publish.ps1` 生成到 `artifacts\Forma-<版本>-win-x64`，入口为 `Forma.exe`，包含运行时、原生库、中英文图文文档、MIT / 第三方许可和构建信息。根目录两份使用说明链接到 `docs` 中的完整指南，保留该目录可离线查看图片。按版本输出，避免覆盖运行中的旧版。`-Zip` 额外生成 ZIP 与 SHA-256 文件。不要提交 SDK、输出包或用户数据。
 
 ## 隔离启动与截图
 
 ```powershell
-.\scripts\run.ps1 -ScanFolder 'E:\local\IconAdapt\.local\demo' -DataRoot 'E:\local\IconAdapt\.local\demo-data'
+.\scripts\run.ps1 -ScanFolder (Join-Path $PWD '.local\demo') -DataRoot (Join-Path $PWD '.local\demo-data')
 ```
 
 直接运行应用还可传 `--scan-folder <绝对路径>`、`--data-root <绝对路径>`、`--smoke-ui <输出 PNG 路径>`。截图模式等待扫描及渲染完成后保存窗口内容并退出；失败时输出 `.error.txt`。它不执行应用或恢复。
@@ -34,13 +37,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 - 提交使用 `feat:`、`fix:`、`docs:`、`chore:` 等前缀，范围保持清楚。
 - 提交前检查 `git diff --check`、实际 diff 和 `git status --short`，避免提交用户路径记录、快捷方式、备份或凭据。
 - NuGet 依赖精确版本与锁文件一同提交，检查及打包采用 locked restore。升级依赖时显式重新生成锁文件并同步许可原文。
-- 当前没有远程仓库，不自动创建远程或推送。本地 Git 历史不等于远程备份。
+- 公开仓库为 [BOCINPITY/Forma](https://github.com/BOCINPITY/Forma)，默认分支 `main`；通过 PR 协作。发布标签使用 `v<版本>`，由 [GitHub Actions](releases.md) 自动打包与上传附件。
 
 ## 版本
 
 当前 `0.1.0-preview.9` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。产品名与应用程序集名为 Forma；源码命名空间、解决方案名和旧数据目录沿用 IconAdapt。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
 
-正式发布前仍需人工验证真实桌面更新、多 DPI、更多应用图标和文件权限场景，明确安装 / 卸载、代码签名、许可证和自动更新策略。没有正式发布授权时不创建版本标签。
+项目采用 MIT 协议，当前对外提供预发布便携包。稳定发布前仍需人工验证真实桌面更新、多 DPI、更多应用图标和文件权限场景；安装程序、代码签名与自动更新尚未实施。发布流程见 [构建与发布](releases.md)。
 
 ## 验证程序
 

@@ -1,6 +1,6 @@
 # 第三方组件说明
 
-Forma（原 IconAdapt）使用下列开源组件。项目本身的开源许可证尚未决定；上游组件的许可不因此改变。
+Forma（原 IconAdapt）以 [MIT 许可证](LICENSE) 开源，并使用下列开源组件。上游组件保留各自的许可。
 
 | 组件 | 使用方式 | 上游与许可 |
 | --- | --- | --- |
@@ -11,3 +11,17 @@ Forma（原 IconAdapt）使用下列开源组件。项目本身的开源许可�
 分发文件夹的 `licenses` 子目录保存对应许可证及上游第三方声明。生成包时保留这些文件；它们是授权条款的一部分。
 
 工具不附带 Apple 图标或第三方应用图标包。用户本机应用图标仅用于本地适配，其权利归原作者或权利人所有。
+
+## Third-party notices
+
+Forma (formerly IconAdapt) is released under the [MIT license](LICENSE). Its dependencies retain their own licenses:
+
+| Component | Usage | Upstream and license |
+| --- | --- | --- |
+| .NET / WPF / Windows Forms | Windows desktop framework and icon interop; the portable package includes runtime files | [dotnet/runtime](https://github.com/dotnet/runtime), [dotnet/wpf](https://github.com/dotnet/wpf), [dotnet/winforms](https://github.com/dotnet/winforms); MIT and their third-party notices |
+| SkiaSharp 4.153.1 | Icon composition, including native Windows dependencies | [mono/SkiaSharp](https://github.com/mono/SkiaSharp); MIT and its third-party notices |
+| Skia | Native graphics engine used by SkiaSharp | [google/skia](https://github.com/google/skia); BSD-style license and its third-party notices |
+
+The `licenses` directory contains the original upstream license texts and third-party notices. Preserve these files when redistributing the portable package. The runtime notices correspond to .NET 10.0.13 (SDK 10.0.402); update the notices when updating the bundled runtime or dependencies.
+
+Forma does not distribute Apple icons or third-party application icon packs. Icons extracted from locally installed applications remain the property of their respective owners.

@@ -14,7 +14,11 @@ Push-Location $projectRoot
 try {
     & $dotnetExecutable publish $projectPath --configuration Release --runtime win-x64 --self-contained true --output $outputPath -p:PublishSingleFile=false -p:RestoreLockedMode=true
     if ($LASTEXITCODE -ne 0) { throw '便携版发布失败。' }
-    Copy-Item -LiteralPath (Join-Path $projectRoot 'docs\user-guide.md') -Destination (Join-Path $outputPath '使用说明.md') -Force
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $outputPath -Recurse -Force
+    @('# Forma 使用说明', '', '完整解压本文件夹，双击 Forma.exe 启动。无需另装 .NET。', '', '[完整图文使用说明](docs/user-guide.md) · [English guide](docs/en/user-guide.md)', '', '应用后请保留 %LOCALAPPDATA%\IconAdapt\ 数据目录；删除数据前先在程序中恢复默认图标。') | Set-Content -LiteralPath (Join-Path $outputPath '使用说明.md') -Encoding UTF8
+    @('# Forma user guide', '', 'Extract this entire folder and run Forma.exe. No separate .NET installation is required.', '', '[Illustrated user guide](docs/en/user-guide.md) · [中文说明](docs/user-guide.md)', '', 'Keep %LOCALAPPDATA%\IconAdapt\ after applying icons. Restore icons before deleting app data.') | Set-Content -LiteralPath (Join-Path $outputPath 'user-guide.md') -Encoding UTF8
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSE') -Destination $outputPath -Force
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'CHANGELOG.md'), (Join-Path $projectRoot 'CONTRIBUTING.md') -Destination $outputPath -Force
     Copy-Item -LiteralPath (Join-Path $projectRoot 'THIRD-PARTY-NOTICES.md') -Destination $outputPath -Force
     Copy-Item -LiteralPath (Join-Path $projectRoot 'licenses') -Destination $outputPath -Recurse -Force
 
