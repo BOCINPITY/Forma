@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-当前版本：`0.1.0-preview.1`，可操作的开发预览版。
+当前版本：`0.1.0-preview.2`，可操作的开发预览版。修复跨盘快捷方式的相对路径标志误报，并改善权限失败提示。
 
 已实现桌面 / 文件夹扫描、图标网格选择、实时前后对比、渐变 / 纯色 / 透明底板、大小与圆角调整、多尺寸 ICO、批量应用、持久备份、历史记录和按批次恢复。
 
@@ -12,7 +12,7 @@ Release 构建及图像、Windows COM、跨模块集成验证已通过；WPF 界
 
 ## 直接使用
 
-构建好的便携版位于 `artifacts\IconAdapt-win-x64\`，完整保留该文件夹，双击 `IconAdapt.exe` 启动。自包含 Windows x64 包无需另装 .NET SDK。
+构建好的便携版位于 `artifacts\IconAdapt-0.1.0-preview.2-win-x64\`，完整保留该文件夹，双击 `IconAdapt.exe` 启动。自包含 Windows x64 包无需另装 .NET SDK。按版本分别输出，避免覆盖仍在运行的旧程序。
 
 先预览，再应用；恢复入口在左侧“恢复记录”。**应用后请保留 `%LOCALAPPDATA%\IconAdapt\` 数据目录**，快捷方式会持续引用这里生成的图标。详见 [使用说明](docs/user-guide.md)。
 
@@ -66,6 +66,7 @@ licenses/                    上游许可原文
 ```
 
 - [使用说明](docs/user-guide.md)
+- [应用失败排查与解决方案](docs/troubleshooting-apply.md)
 - [产品范围](docs/product.md)
 - [技术架构](docs/architecture.md)
 - [技术选型记录](docs/adr/0001-windows-native-stack.md)

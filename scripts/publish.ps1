@@ -5,7 +5,10 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'common.ps1')
 $dotnetExecutable = Resolve-IconAdaptDotnet -ProjectRoot $projectRoot
 $projectPath = Join-Path $projectRoot 'src\IconAdapt.App\IconAdapt.App.csproj'
-$outputPath = Join-Path $projectRoot 'artifacts\IconAdapt-win-x64'
+$version = ([xml][System.IO.File]::ReadAllText((Join-Path $projectRoot 'Directory.Build.props'))).Project.PropertyGroup.Version
+if ($version -notmatch '^[0-9][0-9A-Za-z.\-]*$') { throw '无效的构建版本号。' }
+$packageName = "IconAdapt-$version-win-x64"
+$outputPath = Join-Path $projectRoot (Join-Path 'artifacts' $packageName)
 
 Push-Location $projectRoot
 try {
@@ -26,10 +29,10 @@ try {
     $buildInfo | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $outputPath 'build-info.json') -Encoding UTF8
 
     if ($Zip) {
-        $archivePath = Join-Path $projectRoot 'artifacts\IconAdapt-win-x64.zip'
+        $archivePath = Join-Path $projectRoot (Join-Path 'artifacts' ($packageName + '.zip'))
         Compress-Archive -Path $outputPath -DestinationPath $archivePath -Force
         $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-        "$archiveHash  IconAdapt-win-x64.zip" | Set-Content -LiteralPath ($archivePath + '.sha256') -Encoding ASCII
+        "$archiveHash  $packageName.zip" | Set-Content -LiteralPath ($archivePath + '.sha256') -Encoding ASCII
         Write-Output "ZIP：$archivePath"
     }
     Write-Output "启动文件：$(Join-Path $outputPath 'IconAdapt.exe')"

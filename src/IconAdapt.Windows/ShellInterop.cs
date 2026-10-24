@@ -47,12 +47,27 @@ internal static class ShellInterop
     internal sealed record LinkData(string Target, string Arguments, string WorkingDirectory, string Description,
         int ShowCommand, short Hotkey, string IconPath, int IconIndex, byte[] Pidl, uint Flags)
     {
-        internal bool SameLaunch(LinkData other) => Target == other.Target && Arguments == other.Arguments &&
-            WorkingDirectory == other.WorkingDirectory && Description == other.Description &&
-            ShowCommand == other.ShowCommand && Hotkey == other.Hotkey && Pidl.AsSpan().SequenceEqual(other.Pidl) &&
-            // Icon location/expanded icon/Unicode encoding may change when adding a Unicode ICO path.
-            // All remaining flags, including RunAsUser and launch compatibility, must stay identical.
-            (Flags & ~0x40C0u) == (other.Flags & ~0x40C0u);
+        internal bool SameLaunch(LinkData other) => DifferentLaunchFields(other).Count == 0;
+
+        internal List<string> DifferentLaunchFields(LinkData other)
+        {
+            var fields = new List<string>();
+            if (Target != other.Target) fields.Add("启动目标");
+            if (Arguments != other.Arguments) fields.Add("参数");
+            if (WorkingDirectory != other.WorkingDirectory) fields.Add("工作目录");
+            if (Description != other.Description) fields.Add("描述");
+            if (ShowCommand != other.ShowCommand) fields.Add("窗口状态");
+            if (Hotkey != other.Hotkey) fields.Add("快捷键");
+            if (!Pidl.AsSpan().SequenceEqual(other.Pidl)) fields.Add("目标 ID（PIDL）");
+            // MS-SHLLINK 2.1.1: HasRelativePath (0x8) denotes a StringData structure,
+            // not a launch behavior flag. Shell Save can remove it for a cross-volume target.
+            // Accept that normalization only while the absolute target, PIDL and launch fields above
+            // still match. Icon/expanded-icon/Unicode structure flags may also change for a new ICO.
+            // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-shllink/ae350202-3ba9-4790-9e9e-98935f4ee5af
+            // Every other flag, including RunAsUser and compatibility behavior, remains protected.
+            if ((Flags & ~0x40C8u) != (other.Flags & ~0x40C8u)) fields.Add("启动标志");
+            return fields;
+        }
     }
 
     internal static LinkData Read(string path)

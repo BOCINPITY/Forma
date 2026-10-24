@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Media.Imaging;
 using IconAdapt.Core;
+using IconAdapt.App.Diagnostics;
 
 namespace IconAdapt.App.ViewModels;
 
@@ -27,9 +28,10 @@ public sealed class ShortcutItem : ObservableObject
     private bool selected;
     public bool IsSelected { get => selected; set => Set(ref selected, value && CanSelect); }
     private string status;
-    public string Status { get => status; set => Set(ref status, value); }
+    public string Status { get => status; set { if (Set(ref status, value)) Changed(nameof(Diagnostic)); } }
     private string detail;
-    public string Detail { get => detail; set => Set(ref detail, value); }
+    public string Detail { get => detail; set { if (Set(ref detail, value)) Changed(nameof(Diagnostic)); } }
+    public string Diagnostic => string.IsNullOrWhiteSpace(Detail) ? "" : OperationFeedback.ItemAdvice(Detail, Path);
 
     public static BitmapSource? Decode(byte[]? png)
     {
@@ -50,7 +52,8 @@ public sealed class BatchViewModel(OperationBatch batch)
     public OperationBatch Batch { get; } = batch;
     public string Id => Batch.Id;
     public string Title => Batch.CreatedAt.ToLocalTime().ToString("MM月dd日  HH:mm:ss");
-    public string Summary => $"{Batch.Items.Count} 项 · {Batch.Items.Count(x => x.State == "applied")} 项已应用 · {Batch.Items.Count(x => x.State == "restored")} 项已恢复";
+    public string Summary => OperationFeedback.BatchSummary(Batch);
+    public string SummaryForeground => Batch.Items.Any(x => x.State is "failed" or "pending" or "restoring" or "conflict") ? "#B46C5A" : "#7A8194";
     public IEnumerable<BatchItemViewModel> Items => Batch.Items.Select(x => new BatchItemViewModel(x));
     public bool CanRestore => Batch.Items.Any(x => x.State is "applied" or "pending" or "restoring" or "conflict");
 }
@@ -59,6 +62,7 @@ public sealed class BatchItemViewModel(OperationItem item)
 {
     public string Name => System.IO.Path.GetFileNameWithoutExtension(item.ShortcutPath);
     public string Detail => item.Error ?? item.ShortcutPath;
+    public string Diagnostic => OperationFeedback.ItemAdvice(item.Error, item.ShortcutPath, item.State);
     public string Status => DisplayState(item.State);
     public static string DisplayState(string state) => state switch
     {

@@ -16,7 +16,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 
 `check.ps1` 执行解决方案 restore、Release build 和三个验证程序；`-SkipSmoke` 仅构建。测试仅创建 / 修改 `.local` 中的快捷方式；集成测试还会只读扫描实际桌面，控制台仅输出计数。不能把构建通过视作桌面效果已验证。
 
-开发便携版由 `publish.ps1` 生成到 `artifacts\IconAdapt-win-x64`，包含运行时、原生库、使用说明、许可和构建信息。`-Zip` 额外生成 ZIP 与 SHA-256 文件。不要提交 SDK、输出包或用户数据。
+开发便携版由 `publish.ps1` 生成到 `artifacts\IconAdapt-<版本>-win-x64`，包含运行时、原生库、使用说明、许可和构建信息。按版本输出，避免覆盖运行中的旧版。`-Zip` 额外生成 ZIP 与 SHA-256 文件。不要提交 SDK、输出包或用户数据。
 
 ## 隔离启动与截图
 
@@ -38,7 +38,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 
 ## 版本
 
-当前 `0.1.0-preview.1` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
+当前 `0.1.0-preview.2` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
 
 正式发布前仍需人工验证真实桌面更新、多 DPI、更多应用图标和文件权限场景，明确安装 / 卸载、代码签名、许可证和自动更新策略。没有正式发布授权时不创建版本标签。
 

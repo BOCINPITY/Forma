@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using IconAdapt.Core;
@@ -215,7 +216,7 @@ public sealed class ShortcutService : IShortcutService
                 // A failure after the write may leave a changed shortcut. Keep pending so recovery
                 // inspects the generated icon reference; never mislabel an uncertain write as failed.
                 item.State = prepared ? "pending" : "failed";
-                item.Error = e.Message;
+                item.Error = FormatItemError(e, item.ShortcutPath);
                 Save(batch);
             }
         }
@@ -243,7 +244,9 @@ public sealed class ShortcutService : IShortcutService
                     throw new InvalidDataException("记录与原始备份的图标引用不匹配。");
                 string currentHash = Hash(item.ShortcutPath);
                 var current = ShellInterop.Read(item.ShortcutPath);
-                if (!current.SameLaunch(original)) throw new IOException("快捷方式的启动属性已被修改，已保留当前文件。");
+                var differences = current.DifferentLaunchFields(original);
+                if (differences.Count > 0)
+                    throw new IOException($"快捷方式的启动属性已被修改（{string.Join("、", differences)}），已保留当前文件。");
                 // Recover the save/log crash window, including a restore that finished before Save.
                 if (current.IconPath == item.OriginalIconPath && current.IconIndex == item.OriginalIconIndex)
                 {
@@ -281,7 +284,7 @@ public sealed class ShortcutService : IShortcutService
             {
                 // Retain restoring if the filesystem changed before journal save; retry can reconcile it.
                 item.State = recoveringRestore ? "restoring" : "conflict";
-                item.Error = e.Message;
+                item.Error = FormatItemError(e, item.ShortcutPath);
                 Save(batch);
             }
         }
@@ -321,8 +324,11 @@ public sealed class ShortcutService : IShortcutService
             using (var stable = new FileStream(temporary, FileMode.Open, FileAccess.Write, FileShare.Read,
                 4096, FileOptions.WriteThrough)) stable.Flush(true);
             var after = ShellInterop.Read(temporary);
-            if (!before.SameLaunch(after) || after.IconPath != icon || after.IconIndex != index)
-                throw new IOException("Shell 未能保留快捷方式属性，已中止修改。");
+            var differences = before.DifferentLaunchFields(after);
+            if (after.IconPath != icon) differences.Add("图标路径");
+            if (after.IconIndex != index) differences.Add("图标索引");
+            if (differences.Count > 0)
+                throw new IOException($"Shell 未能保留快捷方式属性（{string.Join("、", differences)}），已中止修改。");
             if (Hash(path) != expectedHash) throw new IOException("保存前快捷方式已变化。");
             File.Replace(temporary, path, null); // Same-volume atomic replacement; preserve source ACL.
             ShellInterop.Notify(path);
@@ -491,6 +497,20 @@ public sealed class ShortcutService : IShortcutService
 
     private static bool SamePath(string? a, string? b) => !string.IsNullOrEmpty(a) && !string.IsNullOrEmpty(b) &&
         string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatItemError(Exception error, string shortcutPath)
+    {
+        if (error is not UnauthorizedAccessException && !(error is COMException && error.HResult == unchecked((int)0x80070005)))
+            return error.Message;
+        string commonDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+        bool isCommonDesktop = !string.IsNullOrWhiteSpace(commonDesktop) &&
+            Path.GetFullPath(shortcutPath).StartsWith(Path.TrimEndingDirectorySeparator(Path.GetFullPath(commonDesktop)) +
+                Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        string advice = isCommonDesktop
+            ? "公共桌面快捷方式权限不足。请先关闭程序，右键以管理员身份运行，确认后重新扫描，仅勾选失败项重试。普通模式下请取消勾选这些受保护项。"
+            : "快捷方式访问被拒绝。请检查文件的只读属性和当前账户的文件/所在目录写入权限（ACL），确认后重新扫描重试。";
+        return advice + " 原始错误：" + error.Message;
+    }
     private static string Hash(string path)
     {
         EnsureSafe(path);

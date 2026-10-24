@@ -23,6 +23,7 @@ internal static class Program
 
     private static void Run()
     {
+        FeedbackChecks.Run();
         var root = FindRepositoryRoot();
         var fixtureRoot = Path.Combine(root, ".local", "integration-smoke", Guid.NewGuid().ToString("N"));
         var shortcutRoot = Path.Combine(fixtureRoot, "中文 测试 shortcuts");

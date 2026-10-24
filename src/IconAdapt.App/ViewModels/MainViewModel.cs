@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using IconAdapt.Core;
+using IconAdapt.App.Diagnostics;
 using Microsoft.Win32;
 
 namespace IconAdapt.App.ViewModels;
@@ -180,8 +181,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                     token.ThrowIfCancellationRequested();
                     item.Rendered = result;
                     item.Preview = ShortcutItem.Decode(result.PreviewPng);
-                    if (item.Status is "等待预览" or "预览失败" or "可应用") item.Status = "可应用";
-                    item.Detail = item.Info.Error ?? "";
+                    if (item.Status is "等待预览" or "预览失败" or "可应用")
+                    {
+                        item.Status = "可应用";
+                        item.Detail = item.Info.Error ?? "";
+                    }
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex) { item.Rendered = null; item.Status = "预览失败"; item.Detail = ex.Message; }
@@ -208,12 +212,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 var item = Items.FirstOrDefault(x => string.Equals(x.Path, result.ShortcutPath, StringComparison.OrdinalIgnoreCase));
                 if (item == null) continue;
                 item.Status = BatchItemViewModel.DisplayState(result.State);
-                item.Detail = result.Error ?? "已备份，可在恢复记录中还原。";
+                item.Detail = result.Error ?? OperationFeedback.ItemAdvice(null, result.ShortcutPath, result.State);
                 if (result.AppliedHash != null) item.Info = item.Info with { FileHash = result.AppliedHash };
             }
-            Status = $"应用完成 · {batch.Items.Count(x => x.State == "applied")} 项成功 / {batch.Items.Count} 项";
-            Notice = "已通知 Windows 更新图标，桌面显示可能稍有延迟。可在桌面按 F5 刷新。";
+            Status = OperationFeedback.ApplyStatus(batch);
+            Notice = OperationFeedback.ApplyNotice(batch);
             await RefreshHistoryAsync(CancellationToken.None);
+            SelectedBatch = History.FirstOrDefault(x => x.Id == batch.Id) ?? SelectedBatch;
         });
     }
 

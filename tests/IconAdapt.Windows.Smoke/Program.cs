@@ -1,11 +1,13 @@
 using System.Drawing;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using IconAdapt.Core;
 using IconAdapt.Windows;
 
-// Deliberately never discovers or writes the real desktop. All link writes are beneath .local.
+// Never discovers or writes the real desktop. Fixtures live beneath .local and a uniquely named
+// %TEMP% directory for the physical cross-volume regression; no user link is loaded by this test.
 string repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 string testRoot = Path.Combine(repo, ".local", "windows-smoke", Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(testRoot);
@@ -62,6 +64,7 @@ EditArguments(shortcut, "/c echo external");
 string externalHash = Hash(shortcut);
 var conflict = await service.RestoreAsync(c.Id);
 Check(conflict.Items[0].State == "conflict" && Hash(shortcut) == externalHash, "external launch modification preserved");
+Check(conflict.Items[0].Error!.Contains("参数") && !conflict.Items[0].Error!.Contains("/c echo"), "conflict names changed field without leaking argument values");
 var stale = await service.ApplyAsync([new(shortcut, fresh.FileHash, ico)]);
 Check(stale.Items[0].State == "failed" && Hash(shortcut) == externalHash, "stale scan hash rejected");
 fresh = (await service.ScanAsync(links)).Items[0];
@@ -111,8 +114,64 @@ try
 {
     var refused = await service.ApplyAsync([new(readOnly, readOnlyInfo.FileHash, ico)]);
     Check(refused.Items[0].State == "failed" && Hash(readOnly) == readOnlyInfo.FileHash, "read-only file fails without mutation");
+    Check(refused.Items[0].Error!.Contains("只读") && refused.Items[0].Error!.Contains("ACL") && refused.Items[0].Error!.Contains("原始错误"), "access failure offers actionable permission advice and original detail");
 }
 finally { File.SetAttributes(readOnly, File.GetAttributes(readOnly) & ~FileAttributes.ReadOnly); }
+
+// The Windows Shell drops HasRelativePath when a link saved on a different volume targets this
+// executable. It must pass the icon-only guard while genuine RunAsUser changes must still fail.
+var shellType = typeof(ShortcutService).Assembly.GetType("IconAdapt.Windows.ShellInterop")!;
+object ReadSnapshot(string path)
+{
+    object? result = null;
+    Sta(() => result = shellType.GetMethod("Read", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [path]));
+    return result!;
+}
+bool SameSnapshot(object before, object after) => (bool)before.GetType().GetMethod("SameLaunch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(before, [after])!;
+object ChangeFlags(object snapshot, uint flag)
+{
+    var type = snapshot.GetType();
+    var constructor = type.GetConstructors().Single(x => x.GetParameters().Length == 10);
+    var args = constructor.GetParameters().Select(x => type.GetProperty(x.Name!)!.GetValue(snapshot)).ToArray();
+    args[9] = (uint)args[9]! ^ flag;
+    return constructor.Invoke(args);
+}
+var snapshot = ReadSnapshot(shortcut);
+Check(SameSnapshot(snapshot, ChangeFlags(snapshot, 0x8)), "HasRelativePath structure-bit normalization is accepted");
+Check(!SameSnapshot(snapshot, ChangeFlags(snapshot, 0x2000)), "RunAsUser behavior change remains rejected");
+Check(!SameSnapshot(snapshot, ChangeFlags(snapshot, 0x400)), "RunInSeparateProcess behavior change remains rejected");
+
+string sameDriveTarget = Path.Combine(testRoot, "cross-drive-target.exe");
+File.Copy(target, sameDriveTarget);
+string relativeSeed = Path.Combine(testRoot, "relative-seed.lnk");
+CreateLink(relativeSeed, sameDriveTarget, "/c echo cross-volume", testRoot, "Cross-volume regression", "");
+Check((BitConverter.ToUInt32(File.ReadAllBytes(relativeSeed), 0x14) & 0x8) != 0, "self-created fixture contains relative-path structure");
+if (!string.Equals(Path.GetPathRoot(testRoot), Path.GetPathRoot(Path.GetTempPath()), StringComparison.OrdinalIgnoreCase))
+{
+    string crossRoot = Path.Combine(Path.GetTempPath(), "IconAdapt-diagnostics-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(crossRoot);
+    string crossShortcut = Path.Combine(crossRoot, "Cross-volume.lnk");
+    File.Copy(relativeSeed, crossShortcut);
+    object before = ReadSnapshot(crossShortcut);
+    using var crossService = new ShortcutService(Path.Combine(testRoot, "cross-volume-storage"));
+    var info = (await crossService.ScanAsync(crossRoot)).Items.Single();
+    var changed = await crossService.ApplyAsync([new(crossShortcut, info.FileHash, ico)]);
+    Check(changed.Items[0].State == "applied", "physical cross-volume shortcut applies despite relative-path normalization: " + changed.Items[0].Error);
+    Check((BitConverter.ToUInt32(File.ReadAllBytes(crossShortcut), 0x14) & 0x8) == 0 && SameSnapshot(before, ReadSnapshot(crossShortcut)), "cross-volume Save removes only harmless relative-path metadata");
+    Check((await crossService.RestoreAsync(changed.Id)).Items[0].State == "restored", "cross-volume shortcut restores");
+    Console.WriteLine("Cross-volume fixture: " + crossRoot);
+}
+else Console.WriteLine("SKIP physical cross-volume fixture: workspace and TEMP share a volume; structure/behavior comparisons still tested.");
+
+var errorFormatter = typeof(ShortcutService).GetMethod("FormatItemError", BindingFlags.Static | BindingFlags.NonPublic)!;
+string commonDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+string ExplainAccess(string path) => (string)errorFormatter.Invoke(null, [new UnauthorizedAccessException("synthetic access detail"), path])!;
+if (!string.IsNullOrEmpty(commonDesktop))
+{
+    Check(ExplainAccess(Path.Combine(commonDesktop, "fixture.lnk")).Contains("公共桌面"), "permission advice recognizes actual common desktop path");
+    Check(!ExplainAccess(Path.Combine(commonDesktop + "-sibling", "fixture.lnk")).Contains("公共桌面"), "common desktop boundary excludes similarly named sibling directory");
+}
+Check(!ExplainAccess(Path.Combine(testRoot, "Public", "Desktop", "fixture.lnk")).Contains("公共桌面"), "permission advice does not rely on directory names");
 
 string document = Path.Combine(testRoot, "text.txt");
 File.WriteAllText(document, "sample");

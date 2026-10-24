@@ -4,6 +4,7 @@
     <TargetFramework>net10.0-windows</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\src\IconAdapt.App\Diagnostics\OperationFeedback.cs" Link="OperationFeedback.cs" />
     <ProjectReference Include="..\..\src\IconAdapt.Imaging\IconAdapt.Imaging.csproj" />
     <ProjectReference Include="..\..\src\IconAdapt.Windows\IconAdapt.Windows.csproj" />
   </ItemGroup>
