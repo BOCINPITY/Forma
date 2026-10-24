@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing version tag, for example v0.1.0-preview.9'
+        description: 'Existing version tag, for example v1.0.0'
         required: true
         type: string
 
@@ -40,7 +40,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $tag = $env:REQUESTED_TAG
           if ($tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$') {
-            throw 'Expected a version tag such as v0.1.0-preview.9.'
+            throw 'Expected a version tag such as v1.0.0.'
           }
           $version = [string]([xml](Get-Content -LiteralPath Directory.Build.props -Raw)).Project.PropertyGroup.Version
           if ($tag -cne "v$version") { throw 'Tag does not match Directory.Build.props.' }
@@ -59,12 +59,16 @@ jobs:
         run: .\scripts\check.ps1
       - name: Package portable Windows x64 build
         run: .\scripts\publish.ps1 -Zip
+      - name: Verify and launch both portable packages with isolated fixtures
+        run: .\scripts\check-package.ps1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-package
           path: |
             artifacts/Forma-${{ steps.version.outputs.version }}-win-x64.zip
             artifacts/Forma-${{ steps.version.outputs.version }}-win-x64.zip.sha256
+            artifacts/Forma-${{ steps.version.outputs.version }}-win-x64.exe
+            artifacts/Forma-${{ steps.version.outputs.version }}-win-x64.exe.sha256
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -89,21 +93,33 @@ jobs:
           RELEASE_VERSION: ${{ needs.package.outputs.version }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $packageName = "Forma-$env:RELEASE_VERSION-win-x64.zip"
-          $archivePath = Join-Path 'release-assets' $packageName
-          $checksumPath = "$archivePath.sha256"
-          $expected = (Get-Content -LiteralPath $checksumPath -Raw).Trim()
-          $actual = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($expected -cne "$actual  $packageName") { throw 'Package checksum mismatch.' }
+          $assets = @()
+          foreach ($extension in @('exe', 'zip')) {
+            $packageName = "Forma-$env:RELEASE_VERSION-win-x64.$extension"
+            $archivePath = Join-Path 'release-assets' $packageName
+            $checksumPath = "$archivePath.sha256"
+            $expected = (Get-Content -LiteralPath $checksumPath -Raw).Trim()
+            $actual = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($expected -cne "$actual  $packageName") { throw 'Package checksum mismatch.' }
+            $assets += @($archivePath, $checksumPath)
+          }
+          $exeSize = '{0:N2}' -f ((Get-Item -LiteralPath "release-assets/Forma-$env:RELEASE_VERSION-win-x64.exe").Length / 1MB)
+          $zipSize = '{0:N2}' -f ((Get-Item -LiteralPath "release-assets/Forma-$env:RELEASE_VERSION-win-x64.zip").Length / 1MB)
           $isPrerelease = $env:RELEASE_VERSION.Contains('-')
           $notes = @"
           ## 中文
-          Windows x64 自包含便携版：下载 ZIP，完整解压后启动 Forma.exe；无需安装 .NET。
+          Windows x64 自包含便携版，无需安装 .NET 或解压软件。
+          附件体积：高压缩 EXE $exeSize MiB，兼容 ZIP $zipSize MiB。
+          推荐下载 .exe 高压缩启动包：双击即用，自动解压到临时目录，退出后清理；每次启动有短暂解压过程。也可下载 ZIP，完整解压后运行 Forma.exe。
+          移除调试符号及多余语言资源，保留完整应用能力与必需运行时。压缩启动包沿用 Forma 的代码绘制图标。
           随包提供中英文使用说明、MIT 许可证及第三方声明。先预览再应用，应用后请保留 %LOCALAPPDATA%\IconAdapt 数据目录。
           本版无安装程序、代码签名或自动更新。SHA-256 校验文件见附件；变更记录见仓库 CHANGELOG.md。
 
           ## English
-          Self-contained portable Windows x64 build: download and fully extract the ZIP, then run Forma.exe. No separate .NET installation is required.
+          Self-contained portable Windows x64 builds; no .NET or archive utility installation is required.
+          Asset sizes: compressed EXE $exeSize MiB; compatible ZIP $zipSize MiB.
+          Recommended: download the compressed .exe and double-click to run. It extracts to a temporary folder and cleans up after exit, with a short extraction step on each launch. Alternatively, fully extract the ZIP and run Forma.exe.
+          Removes debug symbols and surplus language resources while retaining app functionality and the required runtime. The compressed launcher carries Forma's code-drawn icon.
           Includes Chinese and English guides, the MIT license, and third-party notices. Preview before applying; preserve %LOCALAPPDATA%\IconAdapt after applying icons.
           No installer, code signing, or automatic updates. The SHA-256 checksum is attached; see CHANGELOG.md in the repository for changes.
           "@
@@ -116,8 +132,9 @@ jobs:
           } else {
             $createArguments = @('--verify-tag')
             if ($isPrerelease) { $createArguments += '--prerelease' }
+            else { $createArguments += '--latest' }
             & gh release create $env:RELEASE_TAG @commonArguments @createArguments
           }
           if ($LASTEXITCODE -ne 0) { throw 'Could not create or update the GitHub Release.' }
-          & gh release upload $env:RELEASE_TAG $archivePath $checksumPath --repo $env:GH_REPO --clobber
+          & gh release upload $env:RELEASE_TAG @assets --repo $env:GH_REPO --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload release assets.' }

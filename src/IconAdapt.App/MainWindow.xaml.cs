@@ -90,6 +90,9 @@ public partial class MainWindow : Window
         if (smokeOutput == null) return;
         try
         {
+            var ready = viewModel.Items.Count(item => item.Rendered != null);
+            if (viewModel.Items.Any(item => item.CanSelect && item.Rendered == null))
+                throw new InvalidOperationException("A supported shortcut failed to render in the packaged app.");
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
             UpdateLayout();
             var content = (FrameworkElement)Content;
@@ -100,6 +103,12 @@ public partial class MainWindow : Window
             encoder.Frames.Add(BitmapFrame.Create(image));
             Directory.CreateDirectory(Path.GetDirectoryName(smokeOutput)!);
             using (var output = File.Create(smokeOutput)) encoder.Save(output);
+            File.WriteAllText(smokeOutput + ".json", System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Version = viewModel.Version, Scanned = viewModel.Items.Count, Ready = ready,
+                BundledRuntime = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory()
+                    .StartsWith(AppContext.BaseDirectory, StringComparison.OrdinalIgnoreCase)
+            }));
             allowClose = true;
             Close();
         }

@@ -24,19 +24,21 @@ For isolated UI work, create test shortcuts and run `.\scripts\run.ps1 -ScanFold
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 ```
 
-Output: `artifacts\Forma-<version>-win-x64\`, a ZIP and `.sha256`. Packages include the runtime, illustrated Chinese and English user guides, MIT and dependency notices. Keep the whole folder; do not distribute the EXE alone. Check a download using `Get-FileHash -LiteralPath '.\download.zip' -Algorithm SHA256`.
+Packaging requires [7-Zip](https://www.7-zip.org/). The script cleans old output, excludes debug symbols, and keeps Chinese and fallback English framework resources. It retains the WPF runtime without unsupported trimming. It creates a maximum-Deflate ZIP and a solid LZMA2-compressed EXE, each with a SHA-256 file. The launcher uses SHA-256-pinned, public-domain LZMA SDK 26.01, extracts to a temporary directory and cleans up on exit. Its icon, version and asInvoker manifest resources come from Forma.
+
+Output: `artifacts\Forma-<version>-win-x64\` and adjacent assets, including the runtime, bilingual guides and license notices. Keep the complete ZIP folder. Run `.\scripts\check-package.ps1` to verify both assets and test bundled-runtime startup, native icon extraction and rendering with isolated shortcut fixtures; it never changes the real desktop. Check a download using `Get-FileHash -LiteralPath '.\download.exe' -Algorithm SHA256`.
 
 ## GitHub Actions
 
 - **Build** runs on `main` pushes, pull requests and manual dispatch. It validates and packages the app; artifacts expire after 14 days.
-- **Release** runs for a pushed version tag or an existing tag selected manually. It builds and uploads ZIP / SHA-256 assets to GitHub Releases. Versions with suffixes such as `-preview` are prereleases.
+- **Release** runs for a pushed version tag or an existing tag selected manually. It verifies and uploads EXE / ZIP / SHA-256 assets. Stable versions are marked Latest; versions with suffixes such as `-preview` are prereleases.
 - Windows runners use the same SDK. Test display changes affect only the disposable runner. Only the publication job has repository write access. Local test data and backups are never uploaded.
 
 Update `Directory.Build.props`, dependency lock files and the short changelog. Commit to `main`, wait for Build, then push a matching tag:
 
 ```powershell
-git tag -a v0.1.0-preview.9 -m 'Forma 0.1.0-preview.9'
-git push origin v0.1.0-preview.9
+git tag -a v1.0.0 -m 'Forma 1.0.0'
+git push origin v1.0.0
 ```
 
-The tag must be `v` plus the project version. Rerunning Release updates notes and replaces matching assets. Update `licenses` and third-party notices when changing runtimes or dependencies. There is no signing, installer or updater yet; stable releases still need manual desktop, DPI and permission checks.
+The tag must be `v` plus the project version. Rerunning Release updates notes and replaces matching assets. Update `licenses` and third-party notices when changing runtimes or dependencies. There is no signing, installer or updater yet; see the user guide for platform scope.

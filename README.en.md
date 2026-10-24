@@ -11,7 +11,7 @@
 [![Build](https://github.com/BOCINPITY/Forma/actions/workflows/build.yml/badge.svg)](https://github.com/BOCINPITY/Forma/actions/workflows/build.yml)
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4)
-![Preview](https://img.shields.io/badge/version-0.1.0--preview.9-orange)
+![Release](https://img.shields.io/badge/version-1.0.0-green)
 
 [Download](https://github.com/BOCINPITY/Forma/releases) · [User guide](docs/en/user-guide.md) · [Development](docs/en/development.md) · [中文使用说明](docs/user-guide.md)
 
@@ -33,12 +33,14 @@ Screenshots use original synthetic artwork and demo states. The interface curren
 
 ## Download and use
 
-1. Download `Forma-<version>-win-x64.zip` from [Releases](https://github.com/BOCINPITY/Forma/releases), **extract the entire archive**, and run `Forma.exe`. No separate .NET installation is needed.
+1. Download `Forma-<version>-win-x64.exe` from [Releases](https://github.com/BOCINPITY/Forma/releases/latest) and double-click to run. No .NET or archive utility installation is needed. Alternatively, fully extract the ZIP and run its `Forma.exe`.
 2. Scan the desktop or choose a shortcut folder. Check the icons you want to change, then select **macOS 预设** (macOS preset) or adjust the style.
 3. Review the set in **桌面预览** (desktop preview), inspect individual icons at 32 / 48px, then select **应用选中图标** (apply selected icons).
 4. Select **恢复默认图标** (restore default icons) to return to the references saved before Forma's first change, including any custom icons you already had.
 
-Current version: **`0.1.0-preview.9`**, Windows x64, primarily tested on Windows 11. This is an unsigned development preview without an installer or automatic updater. Close the old version before starting a newer one.
+Current stable version: **`1.0.0`**, Windows x64, primarily tested on Windows 11. The compressed EXE extracts to a temporary directory on each launch and cleans up on exit. The ZIP needs extraction only once. Both include the runtime and offer the same features. Packages are unsigned, without an installer or automatic updater. Close the old version before starting a newer one.
+
+The compressed EXE is approximately **50 MiB** and the compatible ZIP **68 MiB**, compared with **102 MiB** for the first public preview. The recommended download is roughly half the size.
 
 **Keep `%LOCALAPPDATA%\IconAdapt\` after applying icons.** It stores persistent ICO files, backups and operation records. Shortcuts continue to reference those ICO files. Restore icons before deleting app data. Forma was previously named IconAdapt and retains its data directory for compatibility.
 
@@ -63,13 +65,13 @@ Create a self-contained portable archive with bilingual user guides and license 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 ```
 
-Output: `artifacts\Forma-<version>-win-x64\`, plus a ZIP and `.sha256` checksum. SDK files, build output and local test data are excluded from Git.
+Packaging requires [7-Zip](https://www.7-zip.org/). Output: `artifacts\Forma-<version>-win-x64\`, plus a compressed EXE, ZIP and SHA-256 checksums. SDK files, build output and local test data are excluded from Git.
 
 ## Automated builds and releases
 
 - [Build](.github/workflows/build.yml) runs on `main` pushes, pull requests and manual dispatch, validates the project and uploads the portable package as an Actions artifact.
 - [Release](.github/workflows/release.yml) builds a pushed `v<version>` tag, or an existing tag selected manually, and uploads a GitHub Release. The tag must match `Directory.Build.props`.
-- Versions with a prerelease suffix, including `preview`, are marked **Pre-release**. Packages currently target Windows x64 and include a SHA-256 checksum.
+- Stable versions are marked **Latest**; versions with a prerelease suffix, including `preview`, are marked **Pre-release**. Self-contained EXE / ZIP packages target Windows x64 and include SHA-256 checksums.
 
 See [Build and release](docs/en/development.md) for instructions.
 

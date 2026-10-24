@@ -2,13 +2,15 @@
 
 [Project home](https://github.com/BOCINPITY/Forma) · [简体中文](../user-guide.md)
 
-Forma adapts ordinary Windows application shortcuts. You can compare icons before applying a style, update a selected group, and restore their original icon references later. This guide describes **0.1.0-preview.9**. The current interface uses Chinese labels; the key controls are identified below.
+Forma adapts ordinary Windows application shortcuts. You can compare icons before applying a style, update a selected group, and restore their original icon references later. This guide describes **1.0.0**. The current interface uses Chinese labels; the key controls are identified below.
 
 ## Start the portable app
 
-Download the Windows x64 ZIP from [Releases](https://github.com/BOCINPITY/Forma/releases), extract the complete `Forma-<version>-win-x64` folder, and open `Forma.exe`. Keep all accompanying files: the EXE alone is insufficient. The self-contained package includes its runtime, so you do not need the .NET SDK.
+Download the compressed `Forma-<version>-win-x64.exe` from [Releases](https://github.com/BOCINPITY/Forma/releases/latest) and double-click to run. It extracts to a temporary folder on each launch, then cleans up on exit. No .NET or archive utility installation is needed; startup includes a short extraction step.
 
-This is an unsigned development preview, with no installer or automatic updater. It targets Windows x64, with initial validation focused on Windows 11. Close the old app before opening an upgrade.
+Alternatively, extract the complete ZIP folder and run its `Forma.exe`. Keep all accompanying files; this option only needs extraction once. Both formats include the runtime and have the same features. Settings, generated icons and backups stay in `%LOCALAPPDATA%\IconAdapt\`, separate from temporary program files.
+
+This stable release is unsigned, without an installer or automatic updater. It targets Windows x64, primarily tested on Windows 11. Close the old app before opening an upgrade.
 
 Forma was previously called IconAdapt. Upgrades continue to use `%LOCALAPPDATA%\IconAdapt\` for settings, icons, backups, and operation records. Keep this directory at its existing location; renaming the app does not require migrating its data.
 

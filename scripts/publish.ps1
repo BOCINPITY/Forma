@@ -3,6 +3,7 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'common.ps1')
+. (Join-Path $PSScriptRoot 'package-tools.ps1')
 $dotnetExecutable = Resolve-IconAdaptDotnet -ProjectRoot $projectRoot
 $projectPath = Join-Path $projectRoot 'src\IconAdapt.App\IconAdapt.App.csproj'
 $version = ([xml][System.IO.File]::ReadAllText((Join-Path $projectRoot 'Directory.Build.props'))).Project.PropertyGroup.Version
@@ -12,8 +13,13 @@ $outputPath = Join-Path $projectRoot (Join-Path 'artifacts' $packageName)
 
 Push-Location $projectRoot
 try {
-    & $dotnetExecutable publish $projectPath --configuration Release --runtime win-x64 --self-contained true --output $outputPath -p:PublishSingleFile=false -p:RestoreLockedMode=true
+    $artifactBoundary = [IO.Path]::GetFullPath((Join-Path $projectRoot 'artifacts')).TrimEnd('\') + '\'
+    $outputPath = [IO.Path]::GetFullPath($outputPath)
+    if (-not $outputPath.StartsWith($artifactBoundary, [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid package output path.' }
+    if (Test-Path -LiteralPath $outputPath) { Remove-Item -LiteralPath $outputPath -Recurse -Force }
+    & $dotnetExecutable publish $projectPath --configuration Release --runtime win-x64 --self-contained true --output $outputPath -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -p:SatelliteResourceLanguages=zh-Hans -p:RestoreLockedMode=true
     if ($LASTEXITCODE -ne 0) { throw '便携版发布失败。' }
+    Get-ChildItem -LiteralPath $outputPath -Filter '*.pdb' -Recurse -File | Remove-Item -Force
     $packageDocs = [System.IO.Path]::GetFullPath((Join-Path $outputPath 'docs'))
     $packageBoundary = [System.IO.Path]::GetFullPath($outputPath).TrimEnd('\') + '\'
     if (-not $packageDocs.StartsWith($packageBoundary, [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid package documentation path.' }
@@ -42,11 +48,42 @@ try {
     $buildInfo | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $outputPath 'build-info.json') -Encoding UTF8
 
     if ($Zip) {
+        $tools = Resolve-FormaPackageTools -ProjectRoot $projectRoot
         $archivePath = Join-Path $projectRoot (Join-Path 'artifacts' ($packageName + '.zip'))
-        Compress-Archive -Path $outputPath -DestinationPath $archivePath -Force
-        $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-        "$archiveHash  $packageName.zip" | Set-Content -LiteralPath ($archivePath + '.sha256') -Encoding ASCII
-        Write-Output "ZIP：$archivePath"
+        if (Test-Path -LiteralPath $archivePath) { Remove-Item -LiteralPath $archivePath -Force }
+        & $tools.Zip a -tzip $archivePath $outputPath -mx=9 -mm=Deflate -mfb=258 -mpass=15 -bso0 -bsp0
+        if ($LASTEXITCODE -ne 0) { throw 'ZIP compression failed.' }
+
+        $staging = Join-Path $projectRoot (Join-Path '.local\packaging' $packageName)
+        New-Item -ItemType Directory -Path $staging -Force | Out-Null
+        $solidPath = Join-Path $staging 'payload.7z'
+        if (Test-Path -LiteralPath $solidPath) { Remove-Item -LiteralPath $solidPath -Force }
+        Push-Location $outputPath
+        try {
+            & $tools.Solid a -t7z $solidPath '.\*' -mx=9 -md=128m -mfb=273 -ms=on -mqs=on -mmt=2 -bso0 -bsp0
+            if ($LASTEXITCODE -ne 0) { throw 'Solid compression failed.' }
+        } finally { Pop-Location }
+
+        $stubPath = Join-Path $staging 'forma.sfx'
+        Copy-Item -LiteralPath $tools.Sfx -Destination $stubPath -Force
+        & (Join-Path $PSScriptRoot 'copy-executable-brand.ps1') -Source (Join-Path $outputPath 'Forma.exe') -Destination $stubPath
+        $launcherPath = Join-Path $projectRoot (Join-Path 'artifacts' ($packageName + '.exe'))
+        $launcher = [IO.File]::Create($launcherPath)
+        try {
+            $stub = [IO.File]::OpenRead($stubPath)
+            try { $stub.CopyTo($launcher) } finally { $stub.Dispose() }
+            $config = ';!@Install@!UTF-8!' + "`n" + 'Title="Forma"' + "`n" + 'RunProgram="Forma.exe"' + "`n" + ';!@InstallEnd@!' + "`n"
+            $configBytes = [Text.Encoding]::UTF8.GetBytes($config)
+            $launcher.Write($configBytes, 0, $configBytes.Length)
+            $payload = [IO.File]::OpenRead($solidPath)
+            try { $payload.CopyTo($launcher) } finally { $payload.Dispose() }
+        } finally { $launcher.Dispose() }
+
+        foreach ($package in @($archivePath, $launcherPath)) {
+            $archiveHash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$archiveHash  $([IO.Path]::GetFileName($package))" | Set-Content -LiteralPath ($package + '.sha256') -Encoding ASCII
+            Write-Output ("Package: {0} ({1:N2} MiB)" -f $package, ((Get-Item -LiteralPath $package).Length / 1MB))
+        }
     }
     Write-Output "启动文件：$(Join-Path $outputPath 'Forma.exe')"
 }

@@ -7,6 +7,7 @@
 - `dotnet-winforms-*`：来自 [dotnet/winforms v10.0.13](https://github.com/dotnet/winforms/tree/v10.0.13) 的 LICENSE.TXT / THIRD-PARTY-NOTICES.TXT。
 - `SkiaSharp-LICENSE.txt`：来自 NuGet `SkiaSharp 4.153.1` 包内 LICENSE.txt。
 - `SkiaSharp-NativeAssets-Win32-*`：来自 NuGet `SkiaSharp.NativeAssets.Win32 4.153.1` 包内 LICENSE.txt / THIRD-PARTY-NOTICES.txt，后者包含 Skia 等原生依赖声明。
+- `LZMA-SDK-LICENSE.txt`：来自 [LZMA SDK 26.01](https://github.com/ip7z/7zip/releases/tag/26.01) 的 DOC/lzma-sdk.txt 许可段；解压启动模块属于公共领域。
 
 升级运行时或依赖版本时须同步更新这些文件及 THIRD-PARTY-NOTICES.md，不得沿用旧版本声明来代替新版本审查。
 
@@ -19,5 +20,6 @@ The original upstream license texts in this directory are distributed with the p
 - `dotnet-winforms-*`: LICENSE.TXT / THIRD-PARTY-NOTICES.TXT from [dotnet/winforms v10.0.13](https://github.com/dotnet/winforms/tree/v10.0.13).
 - `SkiaSharp-LICENSE.txt`: LICENSE.txt from the `SkiaSharp 4.153.1` NuGet package.
 - `SkiaSharp-NativeAssets-Win32-*`: LICENSE.txt / THIRD-PARTY-NOTICES.txt from the `SkiaSharp.NativeAssets.Win32 4.153.1` NuGet package; the latter includes Skia and other native dependencies.
+- `LZMA-SDK-LICENSE.txt`: license section from DOC/lzma-sdk.txt in [LZMA SDK 26.01](https://github.com/ip7z/7zip/releases/tag/26.01); the decompression launcher is public domain.
 
 When updating the runtime or dependencies, update these files and THIRD-PARTY-NOTICES.md together.

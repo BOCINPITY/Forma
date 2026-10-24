@@ -11,7 +11,7 @@
 [![Build](https://github.com/BOCINPITY/Forma/actions/workflows/build.yml/badge.svg)](https://github.com/BOCINPITY/Forma/actions/workflows/build.yml)
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4)
-![Preview](https://img.shields.io/badge/version-0.1.0--preview.9-orange)
+![Release](https://img.shields.io/badge/version-1.0.0-green)
 
 [下载便携版](https://github.com/BOCINPITY/Forma/releases) · [使用说明](docs/user-guide.md) · [开发文档](docs/development.md) · [English guide](docs/en/user-guide.md)
 
@@ -33,12 +33,14 @@
 
 ## 下载与使用
 
-1. 在 [Releases](https://github.com/BOCINPITY/Forma/releases) 下载 `Forma-<版本>-win-x64.zip`，**完整解压**后运行 `Forma.exe`，无需另装 .NET。
+1. 在 [Releases](https://github.com/BOCINPITY/Forma/releases/latest) 下载 `Forma-<版本>-win-x64.exe`，双击即用，无需安装 .NET 或解压软件。也提供 ZIP，完整解压后运行其中的 `Forma.exe`。
 2. 扫描桌面或选择快捷方式文件夹，勾选项目，点击 **macOS 预设** 或调整风格。
 3. 先用桌面预览看整体，再用右侧 32 / 48px 对比检查细节；满意后点击 **应用选中图标**。
 4. 如需还原，点击 **恢复默认图标**，自动恢复到 Forma 首次修改前的图标引用，包含原有自定义图标。
 
-当前版本为 **`0.1.0-preview.9`**，面向 Windows x64，优先验证 Windows 11。便携包尚未签名，无安装程序或自动更新。升级时关闭旧窗口再运行新版。
+当前正式版为 **`1.0.0`**，面向 Windows x64，优先验证 Windows 11。高压缩 EXE 每次启动时自动解压到临时目录，退出后清理；ZIP 解压一次后启动更直接。两者功能一致，均自带运行时，尚未签名，无安装程序或自动更新。升级时关闭旧窗口再运行新版。
+
+高压缩 EXE 约 **50 MiB**，兼容 ZIP 约 **68 MiB**；相比首个预发布包约 **102 MiB**，推荐下载体积约减半。
 
 **应用后保留 `%LOCALAPPDATA%\IconAdapt\`。** 这里保存 ICO、备份和操作记录，快捷方式会持续引用生成的 ICO。卸载或清理数据前先恢复图标。Forma 原名 IconAdapt，沿用旧数据目录以保持已有恢复链可用。
 
@@ -63,13 +65,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 ```
 
-输出位于 `artifacts\Forma-<版本>-win-x64\`，旁边生成 ZIP 和 `.sha256`。SDK、构建产物和测试数据不会提交。
+打包需要 [7-Zip](https://www.7-zip.org/)。输出位于 `artifacts\Forma-<版本>-win-x64\`，旁边生成高压缩 EXE、ZIP 及各自的 `.sha256`。SDK、构建产物和测试数据不会提交。
 
 ## 自动构建与发布
 
 - [Build](.github/workflows/build.yml)：`main` 提交、PR 或手动运行，构建验证并上传便携包为 Actions artifact。
 - [Release](.github/workflows/release.yml)：推送 `v<版本>` 标签，或手动指定已有标签，自动打包并上传 GitHub Release。标签必须与 `Directory.Build.props` 中的版本一致。
-- 带 `preview` 等后缀的版本自动标记为 **Pre-release**；目前仅提供 Windows x64 自包含 ZIP 和 SHA-256 校验文件。
+- 正式版本发布为 **Latest**，带 `preview` 等后缀的版本标记为 **Pre-release**；提供 Windows x64 自包含 EXE / ZIP 和 SHA-256 校验文件。
 
 具体操作见[构建与发布](docs/development.md)。
 
