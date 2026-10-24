@@ -14,7 +14,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 
 `bootstrap.ps1` 从微软官方元数据定位固定 SDK 10.0.402，下载 Windows x64 ZIP，验证 SHA-512 后解压到 `.local\dotnet`。不提权、不改系统 PATH。其余脚本优先用本地 SDK，找不到时再查 PATH。
 
-`check.ps1` 执行解决方案 restore、Release build 和三个验证程序；`-SkipSmoke` 仅构建。测试仅创建 / 修改 `.local` 中的快捷方式；集成测试还会只读扫描实际桌面，控制台仅输出计数。不能把构建通过视作桌面效果已验证。
+`check.ps1` 执行解决方案 restore、Release build 和四个验证程序；`-SkipSmoke` 仅构建。测试仅创建 / 修改 `.local` 中的快捷方式；集成测试还会只读扫描实际桌面，控制台仅输出计数。不能把构建通过视作桌面效果已验证。
 
 开发便携版由 `publish.ps1` 生成到 `artifacts\IconAdapt-<版本>-win-x64`，包含运行时、原生库、使用说明、许可和构建信息。按版本输出，避免覆盖运行中的旧版。`-Zip` 额外生成 ZIP 与 SHA-256 文件。不要提交 SDK、输出包或用户数据。
 
@@ -38,14 +38,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 
 ## 版本
 
-当前 `0.1.0-preview.2` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
+当前 `0.1.0-preview.3` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
 
 正式发布前仍需人工验证真实桌面更新、多 DPI、更多应用图标和文件权限场景，明确安装 / 卸载、代码签名、许可证和自动更新策略。没有正式发布授权时不创建版本标签。
 
 ## 验证程序
 
-- `IconAdapt.Imaging.Smoke`：边界裁切、渲染参数、透明图、ICO 结构、WIC 解码与并发确定性。
+- `IconAdapt.Imaging.Smoke`：边界、原生帧选择、预乘 Alpha 采样、细线和小字、圆角合成、ICO / WIC 与并发。
 - `IconAdapt.Windows.Smoke`：真实 COM 操作、属性保留、备份 / 恢复、多批次、文件冲突和错误恢复。
 - `IconAdapt.Integration.Smoke`：提取 → 渲染 → 应用 → 重启后读取历史 → 恢复，并检查未选中项目和启动属性。
+- `IconAdapt.App.Smoke`：WPF 预览逐像素等于导出帧、原图不放大、切尺寸不重渲染和旧设置保护。
 
-三者无需额外测试框架，失败返回非零退出码。输出图片、ICO、快捷方式和记录保留在 `.local` 便于调查，不会提交。
+四者无需额外测试框架，失败返回非零退出码。输出图片、ICO、快捷方式和记录保留在 `.local` 便于调查，不会提交。

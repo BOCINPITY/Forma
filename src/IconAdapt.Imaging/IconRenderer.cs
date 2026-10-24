@@ -7,14 +7,66 @@ namespace IconAdapt.Imaging;
 /// <summary>Stateless CPU renderer. Each invocation owns and disposes its native resources.</summary>
 public sealed class IconRenderer : IIconRenderer
 {
-    private static readonly int[] IconSizes = [16, 24, 32, 48, 64, 128, 256];
+    private static readonly int[] IconSizes = [16, 20, 24, 32, 40, 48, 64, 80, 96, 128, 192, 256];
     private static readonly byte[] PngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
 
-    public RenderResult Render(byte[] sourcePng, IconStyle style)
+    public RenderResult Render(byte[] sourcePng, IconStyle style) => Render(sourcePng, style, []);
+
+    public RenderResult Render(byte[] sourcePng, IconStyle style, IReadOnlyList<IconFrame> nativeFrames)
     {
         ArgumentNullException.ThrowIfNull(sourcePng);
         ArgumentNullException.ThrowIfNull(style);
+        ArgumentNullException.ThrowIfNull(nativeFrames);
         var color = ValidateStyle(style);
+        var primary = Prepare(sourcePng, style.CropTransparent);
+        var sources = new List<PreparedSource> { primary };
+        long byteBudget = 32 * 1024 * 1024L - sourcePng.Length;
+        long pixelBudget = 16 * 1024 * 1024L - primary.PixelCount;
+        bool skipped = nativeFrames.Count > 64;
+        foreach (var frame in nativeFrames.Take(64))
+        {
+            if (frame is not null && ReferenceEquals(frame.Png, sourcePng))
+            {
+                if (frame.PixelWidth != primary.Width || frame.PixelHeight != primary.Height) skipped = true;
+                continue;
+            }
+            if (frame is null || frame.Png is null || frame.Png.Length > byteBudget ||
+                frame.PixelWidth is < 1 or > 4096 || frame.PixelHeight is < 1 or > 4096 ||
+                (long)frame.PixelWidth * frame.PixelHeight > pixelBudget)
+            { skipped = true; continue; }
+            byteBudget -= frame.Png.Length;
+            try
+            {
+                var prepared = Prepare(frame.Png, style.CropTransparent, frame.PixelWidth, frame.PixelHeight);
+                pixelBudget -= prepared.PixelCount;
+                sources.Add(prepared);
+            }
+            catch (ArgumentException) { skipped = true; }
+        }
+        var frames = IconSizes.Select(size =>
+        {
+            // Keep the canonical source for the 256 px preview/ICO. Small native resources
+            // can contain deliberately simplified artwork; select by actual drawn span,
+            // not metadata dimensions, so transparent padding cannot trigger enlargement.
+            double target = size * style.ContentScale;
+            var selected = size == 256 ? primary : sources.Where(source => source.Span >= target)
+                .OrderBy(source => source.Span).FirstOrDefault() ?? sources.MaxBy(source => source.Span)!;
+            return RenderFrame(selected.Pixels, style, color, size);
+        }).ToArray();
+        var notes = new List<string>();
+        if (256 * style.ContentScale > primary.Span * 1.05)
+            notes.Add("原图可见图案分辨率较低，放大后无法补回细节。");
+        if (style.ContentScale < 0.65)
+            notes.Add("图案占比较小，小尺寸下的细节可能更难辨认。");
+        if (style.Backdrop != BackdropStyle.None && style.ContentScale >= 0.8)
+            notes.Add("底板会裁切超出轮廓的图案边缘，可降低图案比例保留更多内容。");
+        if (skipped)
+            notes.Add("部分原始尺寸无法读取或超出处理上限，已使用可用图标生成。");
+        return new RenderResult(frames[^1], EncodeIcon(frames)) { Notes = notes };
+    }
+
+    private static PreparedSource Prepare(byte[] sourcePng, bool crop, int expectedWidth = 0, int expectedHeight = 0)
+    {
         if (sourcePng.Length is < 24 or > 32 * 1024 * 1024 || !sourcePng.AsSpan(0, 8).SequenceEqual(PngSignature))
             throw new ArgumentException("输入必须是有效 PNG，且不得超过 32 MiB。", nameof(sourcePng));
 
@@ -25,15 +77,21 @@ public sealed class IconRenderer : IIconRenderer
         var info = codec.Info;
         if (info.Width is < 1 or > 4096 || info.Height is < 1 or > 4096)
             throw new ArgumentException("PNG 图标宽高必须在 1–4096 像素之间。", nameof(sourcePng));
+        if (expectedWidth != 0 && (info.Width != expectedWidth || info.Height != expectedHeight))
+            throw new ArgumentException("原始尺寸信息与 PNG 不匹配。", nameof(sourcePng));
         using var bitmap = new SKBitmap(new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
         if (codec.GetPixels(bitmap.Info, bitmap.GetPixels()) != SKCodecResult.Success)
             throw new ArgumentException("PNG 图标已损坏或不完整。", nameof(sourcePng));
 
         var visible = FindVisibleBounds(bitmap);
-        var bounds = style.CropTransparent ? visible : new SKRect(0, 0, bitmap.Width, bitmap.Height);
-        using var source = SKImage.FromBitmap(bitmap);
-        var frames = IconSizes.Select(size => RenderFrame(source, bounds, style, color, size)).ToArray();
-        return new RenderResult(frames[^1], EncodeIcon(frames));
+        var bounds = crop ? visible : new SKRectI(0, 0, bitmap.Width, bitmap.Height);
+        var source = new PixelResampler(bitmap, bounds);
+        return new(source, Math.Max(bounds.Width, bounds.Height), info.Width, info.Height);
+    }
+
+    private sealed record PreparedSource(PixelResampler Pixels, int Span, int Width, int Height)
+    {
+        internal long PixelCount => (long)Width * Height;
     }
 
     private static SKColor ValidateStyle(IconStyle style)
@@ -51,15 +109,11 @@ public sealed class IconRenderer : IIconRenderer
         return new SKColor((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
     }
 
-    private static SKRect FindVisibleBounds(SKBitmap bitmap)
+    private static SKRectI FindVisibleBounds(SKBitmap bitmap)
     {
-        // Ignore nearly invisible padding, but retain genuinely faint artwork.
-        byte maximumAlpha = 0;
+        // Keep every nonzero-alpha pixel. A fixed alpha threshold cuts antialiased edges
+        // and fine translucent detail before the downsampler has a chance to integrate it.
         var pixels = bitmap.Pixels;
-        foreach (var pixel in pixels) maximumAlpha = Math.Max(maximumAlpha, pixel.Alpha);
-        if (maximumAlpha == 0)
-            throw new ArgumentException("PNG 图标完全透明，没有可适配的内容。", "sourcePng");
-        var threshold = Math.Min(8, (int)maximumAlpha);
         var left = bitmap.Width;
         var top = bitmap.Height;
         var right = -1;
@@ -67,20 +121,24 @@ public sealed class IconRenderer : IIconRenderer
         for (var y = 0; y < bitmap.Height; y++)
         for (var x = 0; x < bitmap.Width; x++)
         {
-            if (pixels[y * bitmap.Width + x].Alpha < threshold) continue;
+            if (pixels[y * bitmap.Width + x].Alpha == 0) continue;
             left = Math.Min(left, x);
             top = Math.Min(top, y);
             right = Math.Max(right, x);
             bottom = Math.Max(bottom, y);
         }
-        return new SKRect(left, top, right + 1, bottom + 1);
+        if (right < left)
+            throw new ArgumentException("PNG 图标完全透明，没有可适配的内容。", "sourcePng");
+        return new SKRectI(left, top, right + 1, bottom + 1);
     }
 
-    private static byte[] RenderFrame(SKImage source, SKRect bounds, IconStyle style, SKColor color, int size)
+    private static byte[] RenderFrame(PixelResampler source, IconStyle style, SKColor color, int size)
     {
         using var surface = SKSurface.Create(new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul));
         var canvas = surface.Canvas;
         canvas.Clear(SKColors.Transparent);
+        using var foreground = source.Render(size, style.ContentScale);
+        using var foregroundImage = SKImage.FromBitmap(foreground);
         if (style.Backdrop != BackdropStyle.None)
         {
             var inset = size * 0.055f;
@@ -92,23 +150,29 @@ public sealed class IconRenderer : IIconRenderer
             canvas.Translate(0, size * 0.018f);
             canvas.DrawRoundRect(plate, radius, radius, shadow);
             canvas.Restore();
-            using var paint = new SKPaint { IsAntialias = true, Color = color };
+            // Composite the opaque plate and artwork before applying shape coverage.
+            // Clipping/drawing them separately would apply AA coverage more than once.
+            using var content = SKSurface.Create(new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul));
+            using var paint = new SKPaint { Color = color };
             using var gradient = style.Backdrop == BackdropStyle.Gradient
                 ? SKShader.CreateLinearGradient(new SKPoint(0, 0), new SKPoint(size, size),
                     [Mix(color, SKColors.White, 0.18f), Mix(color, SKColors.Black, 0.12f)], SKShaderTileMode.Clamp)
                 : null;
             paint.Shader = gradient;
-            canvas.DrawRoundRect(plate, radius, radius, paint);
+            content.Canvas.DrawPaint(paint);
+            content.Canvas.DrawImage(foregroundImage, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest));
+            using var contentImage = content.Snapshot();
+            using var shape = new SKRoundRect(plate, radius, radius);
+            canvas.Save();
+            canvas.ClipRoundRect(shape, SKClipOperation.Intersect, antialias: true);
+            canvas.DrawImage(contentImage, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest));
+            canvas.Restore();
         }
-
-        var edge = size * (float)style.ContentScale;
-        var factor = edge / Math.Max(bounds.Width, bounds.Height);
-        // At native small sizes a very narrow mark would otherwise disappear between pixels.
-        var width = Math.Max(1, bounds.Width * factor);
-        var height = Math.Max(1, bounds.Height * factor);
-        var target = SKRect.Create((size - width) / 2, (size - height) / 2, width, height);
-        using var foreground = new SKPaint { IsAntialias = true };
-        canvas.DrawImage(source, bounds, target, new SKSamplingOptions(SKCubicResampler.Mitchell), foreground);
+        else
+        {
+            // Transparency-only mode deliberately retains the artwork's original shape.
+            canvas.DrawImage(foregroundImage, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest));
+        }
         using var image = surface.Snapshot();
         using var png = image.Encode(SKEncodedImageFormat.Png, 100);
         return png.ToArray();

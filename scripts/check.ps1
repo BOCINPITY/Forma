@@ -23,7 +23,8 @@ try {
         $smokeProjects = @(
             'tests\IconAdapt.Imaging.Smoke\IconAdapt.Imaging.Smoke.csproj',
             'tests\IconAdapt.Windows.Smoke\IconAdapt.Windows.Smoke.csproj',
-            'tests\IconAdapt.Integration.Smoke\IconAdapt.Integration.Smoke.csproj'
+            'tests\IconAdapt.Integration.Smoke\IconAdapt.Integration.Smoke.csproj',
+            'tests\IconAdapt.App.Smoke\IconAdapt.App.Smoke.csproj'
         )
         foreach ($smokeProject in $smokeProjects) {
             & $dotnetExecutable run --project (Join-Path $projectRoot $smokeProject) --configuration Release --no-build

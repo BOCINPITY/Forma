@@ -131,6 +131,9 @@ internal static class ShellInterop
     }
 
     internal static byte[]? ExtractPng(string path, LinkData data, string? originalShortcutPath = null)
+        => ExtractImage(path, data, originalShortcutPath)?.Png;
+
+    internal static NativeIconReader.Image? ExtractImage(string path, LinkData data, string? originalShortcutPath = null)
     {
         IntPtr handle = IntPtr.Zero;
         try
@@ -140,16 +143,12 @@ internal static class ShellInterop
                 iconSource = Path.GetFullPath(iconSource, Path.GetDirectoryName(originalShortcutPath ?? path)!);
             if (!string.IsNullOrEmpty(iconSource))
             {
-                // Request a 256 px native frame before falling back to the standard Shell sizes.
-                // nIconSize LOWORD is the large size; HIWORD is the small size.
-                int hr = SHDefExtractIcon(iconSource, data.IconIndex, 0, out handle, out IntPtr small, 256 | (32u << 16));
+                var original = NativeIconReader.TryRead(iconSource, data.IconIndex);
+                if (original is not null) return original;
+                // Unknown/legacy formats still get a usable Shell fallback. Do not request 256px:
+                // that silently magnifies 16/32/96px resources and masks their true resolution.
+                ExtractIconEx(iconSource, data.IconIndex, out handle, out IntPtr small, 1);
                 if (small != IntPtr.Zero) DestroyIcon(small);
-                if (hr != 0 && handle != IntPtr.Zero) { DestroyIcon(handle); handle = IntPtr.Zero; }
-                if (handle == IntPtr.Zero)
-                {
-                    ExtractIconEx(iconSource, data.IconIndex, out handle, out small, 1);
-                    if (small != IntPtr.Zero) DestroyIcon(small);
-                }
             }
             if (handle == IntPtr.Zero)
             {
@@ -162,7 +161,7 @@ internal static class ShellInterop
             using var bitmap = icon.ToBitmap();
             using var stream = new MemoryStream();
             bitmap.Save(stream, ImageFormat.Png);
-            return stream.ToArray();
+            return new(stream.ToArray(), bitmap.Width, bitmap.Height, false);
         }
         finally { if (handle != IntPtr.Zero) DestroyIcon(handle); }
     }
@@ -210,8 +209,6 @@ internal static class ShellInterop
     [DllImport("shell32.dll")] private static extern uint ILGetSize(IntPtr pidl);
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "ExtractIconExW")]
     private static extern uint ExtractIconEx(string file, int index, out IntPtr large, out IntPtr small, uint count);
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "SHDefExtractIconW")]
-    private static extern int SHDefExtractIcon(string file, int index, uint flags, out IntPtr large, out IntPtr small, uint size);
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "SHGetFileInfoW")]
     private static extern IntPtr SHGetFileInfo(string path, uint attributes, ref ShFileInfo info, uint size, uint flags);
     [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr icon);

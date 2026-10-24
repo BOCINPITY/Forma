@@ -38,6 +38,63 @@ using (var bitmap = new Bitmap(pngStream))
     Check(bitmap.Width == 256 && bitmap.Height == 256, "high-resolution 256 px source extraction");
 byte[] originalPng = initial.Items[0].OriginalIconPng!;
 Check(Hash(shortcut) == baseline, "scan does not mutate source");
+Check(initial.Items[0].SourcePixelWidth == 256 && initial.Items[0].SourcePixelHeight == 256, "scan reports verified native dimensions");
+
+string qualityLinks = Path.Combine(testRoot, "quality-links");
+Directory.CreateDirectory(qualityLinks);
+byte[] sharp32 = CreatePng(32), sharp256 = CreatePng(256), sharp768 = CreatePng(768);
+string lowIco = Path.Combine(testRoot, "native32.ico");
+string modernIco = Path.Combine(testRoot, "native256.ico");
+string oversizedIco = Path.Combine(testRoot, "native768.ico");
+File.WriteAllBytes(lowIco, PngIco((32, sharp32)));
+File.WriteAllBytes(modernIco, PngIco((32, sharp32), (256, sharp256)));
+File.WriteAllBytes(oversizedIco, PngIco((256, sharp256), (768, sharp768)));
+CreateLink(Path.Combine(qualityLinks, "Low.lnk"), target, "", testRoot, "low-native-size", lowIco + ",0");
+CreateLink(Path.Combine(qualityLinks, "Modern.lnk"), target, "", testRoot, "original-png-alpha", modernIco + ",0");
+CreateLink(Path.Combine(qualityLinks, "Oversized.lnk"), target, "", testRoot, "actual-PNG-dimensions", oversizedIco + ",0");
+var quality = await service.ScanAsync(qualityLinks);
+var low = quality.Items.Single(x => x.Name == "Low");
+Check(low.OriginalIconPng!.AsSpan().SequenceEqual(sharp32) && low.SourcePixelWidth == 32 && low.SourcePixelHeight == 32,
+    "32px original stays native; scanner never disguises it as upscaled 256px");
+Check(low.QualityWarning?.Contains("32×32") == true, "limited-resolution source has explicit size warning");
+var modern = quality.Items.Single(x => x.Name == "Modern");
+Check(modern.OriginalIconPng!.AsSpan().SequenceEqual(sharp256), "largest PNG frame retains exact original bytes and straight alpha");
+Check(modern.SourcePixelWidth == 256 && modern.QualityWarning is null, "256px native source metadata");
+Check(modern.SourceFrames.Count == 2 && modern.SourceFrames.Single(x => x.PixelWidth == 32).Png.AsSpan().SequenceEqual(sharp32) &&
+    modern.SourceFrames.Single(x => x.PixelWidth == 256).Png.AsSpan().SequenceEqual(sharp256),
+    "native 32px and 256px designs are both preserved byte-for-byte for output size selection");
+var oversized = quality.Items.Single(x => x.Name == "Oversized");
+Check(oversized.OriginalIconPng!.AsSpan().SequenceEqual(sharp768) && oversized.SourcePixelWidth == 768,
+    "resource selection reads actual PNG dimensions beyond ICO directory's 256px marker");
+Check(oversized.SourceFrames.Select(x => (x.PixelWidth, x.PixelHeight)).Distinct().Count() == oversized.SourceFrames.Count,
+    "native source frames are unique by actual dimensions");
+byte[] badHeader = sharp768.ToArray();
+badHeader[16] = 255; // A corrupt PNG IHDR must not prevent extraction of a valid companion frame.
+string mixedIco = Path.Combine(testRoot, "mixed-frames.ico");
+File.WriteAllBytes(mixedIco, PngIco((768, badHeader), (256, sharp256), (256, sharp256), (32, sharp32)));
+CreateLink(Path.Combine(qualityLinks, "Mixed.lnk"), target, "", testRoot, "one-bad-frame", mixedIco + ",0");
+var mixed = (await service.ScanAsync(qualityLinks)).Items.Single(x => x.Name == "Mixed");
+Check(mixed.IsSupported && mixed.SourcePixelWidth == 256 && mixed.SourceFrames.Count == 2,
+    "corrupt large PNG frame is skipped, valid frames remain available and duplicates collapse");
+Check(mixed.SourceFrames.Count <= 64 && mixed.SourceFrames.Sum(x => (long)x.Png.Length) <= 32L * 1024 * 1024 &&
+    mixed.SourceFrames.Sum(x => (long)x.PixelWidth * x.PixelHeight) <= 32L * 1024 * 1024,
+    "native frame collection obeys count, byte and pixel budgets");
+using (var nativeDibIcon = new MemoryStream(ico))
+using (var dib = new Icon(nativeDibIcon))
+{
+    string dibIco = Path.Combine(testRoot, "native-dib.ico");
+    File.WriteAllBytes(dibIco, ico);
+    CreateLink(Path.Combine(qualityLinks, "Dib.lnk"), target, "", testRoot, "legacy-DIB", dibIco + ",0");
+    var extractedDib = (await service.ScanAsync(qualityLinks)).Items.Single(x => x.Name == "Dib");
+    Check(extractedDib.IsSupported && extractedDib.SourcePixelWidth == dib.Width && extractedDib.SourcePixelHeight == dib.Height,
+        "legacy DIB extraction preserves native resource dimensions");
+}
+string corruptIco = Path.Combine(testRoot, "bad-icon.ico");
+File.WriteAllBytes(corruptIco, [0, 0, 1, 0, 255, 255]);
+CreateLink(Path.Combine(qualityLinks, "BadIcon.lnk"), target, "", testRoot, "invalid-ICO-fallback", corruptIco + ",0");
+var badIconInfo = (await service.ScanAsync(qualityLinks)).Items.Single(x => x.Name == "BadIcon");
+Check(badIconInfo.OriginalIconPng is null ? !badIconInfo.IsSupported : badIconInfo.QualityWarning?.Contains("无法核实原生分辨率") == true,
+    "malformed icon falls back with quality caveat or a visible unsupported reason");
 var a = await service.ApplyAsync([new(shortcut, initial.Items[0].FileHash, ico)]);
 Check(a.Items[0].State == "applied", "apply succeeds: " + a.Items[0].Error);
 Check(File.Exists(a.Items[0].BackupPath) && Hash(a.Items[0].BackupPath) == baseline, "original backup hash");
@@ -276,6 +333,33 @@ Console.WriteLine($"Windows smoke passed: {assertions} assertions. Test artifact
 
 void SaveJournal(OperationBatch batch) => File.WriteAllText(Path.Combine(storage, "operations", batch.Id + ".json"), JsonSerializer.Serialize(batch));
 static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+
+static byte[] CreatePng(int size)
+{
+    using var bitmap = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+    for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+            bitmap.SetPixel(x, y, Color.FromArgb((x + y) % 255 + 1, x % 256, y % 256, (x ^ y) % 256));
+    using var stream = new MemoryStream();
+    bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+    return stream.ToArray();
+}
+
+static byte[] PngIco(params (int Size, byte[] Png)[] frames)
+{
+    using var stream = new MemoryStream();
+    using var writer = new BinaryWriter(stream);
+    writer.Write((ushort)0); writer.Write((ushort)1); writer.Write((ushort)frames.Length);
+    int offset = 6 + frames.Length * 16;
+    foreach (var frame in frames)
+    {
+        writer.Write((byte)(frame.Size >= 256 ? 0 : frame.Size)); writer.Write((byte)(frame.Size >= 256 ? 0 : frame.Size));
+        writer.Write((byte)0); writer.Write((byte)0); writer.Write((ushort)1); writer.Write((ushort)32);
+        writer.Write(frame.Png.Length); writer.Write(offset); offset += frame.Png.Length;
+    }
+    foreach (var frame in frames) writer.Write(frame.Png);
+    return stream.ToArray();
+}
 
 // WScript.Shell is only the test fixture author/reader. Production uses IShellLink on a dedicated STA.
 static void CreateLink(string path, string target, string args, string working, string description, string icon)

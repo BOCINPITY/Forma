@@ -9,7 +9,15 @@ public sealed record ShortcutInfo(
     string FileHash,
     byte[]? OriginalIconPng,
     bool IsSupported,
-    string? Error);
+    string? Error)
+{
+    public int SourcePixelWidth { get; init; }
+    public int SourcePixelHeight { get; init; }
+    public string? QualityWarning { get; init; }
+    public IReadOnlyList<IconFrame> SourceFrames { get; init; } = [];
+}
+
+public sealed record IconFrame(int PixelWidth, int PixelHeight, byte[] Png);
 
 public sealed record ScanResult(IReadOnlyList<ShortcutInfo> Items, IReadOnlyList<string> Warnings);
 
@@ -55,9 +63,14 @@ public sealed record IconStyle
     public bool CropTransparent { get; init; } = true;
 }
 
-public sealed record RenderResult(byte[] PreviewPng, byte[] IconFile);
+public sealed record RenderResult(byte[] PreviewPng, byte[] IconFile)
+{
+    public IReadOnlyList<string> Notes { get; init; } = [];
+}
 
 public interface IIconRenderer
 {
     RenderResult Render(byte[] sourcePng, IconStyle style);
+    RenderResult Render(byte[] sourcePng, IconStyle style, IReadOnlyList<IconFrame> nativeFrames)
+        => Render(sourcePng, style);
 }

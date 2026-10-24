@@ -6,4 +6,5 @@
   <Project Path="tests/IconAdapt.Imaging.Smoke/IconAdapt.Imaging.Smoke.csproj" />
   <Project Path="tests/IconAdapt.Windows.Smoke/IconAdapt.Windows.Smoke.csproj" />
   <Project Path="tests/IconAdapt.Integration.Smoke/IconAdapt.Integration.Smoke.csproj" />
+  <Project Path="tests/IconAdapt.App.Smoke/IconAdapt.App.Smoke.csproj" />
 </Solution>

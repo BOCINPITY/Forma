@@ -6,6 +6,7 @@
     <RootNamespace>IconAdapt.App</RootNamespace>
     <AssemblyName>IconAdapt</AssemblyName>
     <ApplicationIcon>Assets\IconAdapt.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets\IconAdapt.ico" />

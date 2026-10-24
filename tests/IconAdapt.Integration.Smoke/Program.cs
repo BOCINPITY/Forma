@@ -24,6 +24,7 @@ internal static class Program
     private static void Run()
     {
         FeedbackChecks.Run();
+        PixelGeometryChecks.Run();
         var root = FindRepositoryRoot();
         var fixtureRoot = Path.Combine(root, ".local", "integration-smoke", Guid.NewGuid().ToString("N"));
         var shortcutRoot = Path.Combine(fixtureRoot, "中文 测试 shortcuts");
@@ -47,7 +48,8 @@ internal static class Program
             Require(item.IsSupported && item.OriginalIconPng is { Length: > 0 }, "Fixture icon must be readable.");
             Require(Hash(shortcut) == originalHash, "Read-only scan must preserve shortcut bytes.");
 
-            var rendered = new IconRenderer().Render(item.OriginalIconPng!, new IconStyle());
+            Require(item.SourceFrames.Count > 0, "Native source frames must be retained for the renderer.");
+            var rendered = new IconRenderer().Render(item.OriginalIconPng!, new IconStyle(), item.SourceFrames);
             Require(rendered.PreviewPng.Length > 0 && rendered.IconFile.Length > 0, "Renderer must produce preview and ICO.");
             File.WriteAllBytes(Path.Combine(fixtureRoot, "preview.png"), rendered.PreviewPng);
             var batch = service.ApplyAsync([new IconChange(item.Path, item.FileHash, rendered.IconFile)]).GetAwaiter().GetResult();

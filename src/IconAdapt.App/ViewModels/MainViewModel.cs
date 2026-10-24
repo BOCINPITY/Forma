@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Windows;
 using IconAdapt.Core;
 using IconAdapt.App.Diagnostics;
+using IconAdapt.App.Imaging;
 using Microsoft.Win32;
 
 namespace IconAdapt.App.ViewModels;
@@ -40,6 +41,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         WorkspaceCommand = new(_ => ShowHistory = false);
         HistoryCommand = new(_ => { ShowHistory = true; _ = RefreshHistorySafelyAsync(); }, _ => !IsBusy);
         ColorCommand = new(value => { if (value is string hex) BackgroundColor = hex; }, _ => !IsBusy);
+        PreviewSizeCommand = new(value =>
+        {
+            if (int.TryParse(value?.ToString(), out var pixels) && pixels is 32 or 48 or 64 or 96) PreviewPixelSize = pixels;
+        });
+        ClarityPresetCommand = new(_ => { CropTransparent = true; ContentScale = 0.80; }, _ => !IsBusy);
     }
 
     public ObservableCollection<ShortcutItem> Items { get; } = [];
@@ -51,6 +57,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool HasHistory => History.Count > 0;
     public bool CanEdit => !IsBusy;
     public int SelectedCount => Items.Count(x => x.IsSelected);
+    private int previewPixelSize = 48;
+    public int PreviewPixelSize
+    {
+        get => previewPixelSize;
+        private set
+        {
+            if (!Set(ref previewPixelSize, value)) return;
+            Changed(nameof(PreviewSizeLabel));
+            foreach (var item in Items) item.SetPreviewSize(value);
+        }
+    }
+    public string PreviewSizeLabel => $"{PreviewPixelSize}px · 实际尺寸";
     private bool isBusy;
     public bool IsBusy { get => isBusy; private set { if (Set(ref isBusy, value)) { Changed(nameof(CanEdit)); RefreshCommands(); } } }
     private bool isRendering;
@@ -71,13 +89,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string backgroundColor = "#7772EE";
     public string BackgroundColor { get => backgroundColor; set { if (Set(ref backgroundColor, value)) SchedulePreview(); } }
     private double contentScale = 0.68;
-    public double ContentScale { get => contentScale; set { if (Set(ref contentScale, value)) { Changed(nameof(ScaleLabel)); SchedulePreview(); } } }
+    public double ContentScale { get => contentScale; set { if (Set(ref contentScale, value)) { Changed(nameof(ScaleLabel)); Changed(nameof(DetailLimitNotice)); SchedulePreview(); } } }
     public string ScaleLabel => $"{ContentScale:P0}";
     private double cornerRadius = 0.23;
     public double CornerRadius { get => cornerRadius; set { if (Set(ref cornerRadius, value)) { Changed(nameof(RadiusLabel)); SchedulePreview(); } } }
     public string RadiusLabel => $"{CornerRadius:P0}";
     private bool cropTransparent = true;
-    public bool CropTransparent { get => cropTransparent; set { if (Set(ref cropTransparent, value)) SchedulePreview(); } }
+    public bool CropTransparent { get => cropTransparent; set { if (Set(ref cropTransparent, value)) { Changed(nameof(DetailLimitNotice)); SchedulePreview(); } } }
+    public string DetailLimitNotice => ContentScale < 0.66 ? "图案占比较小，小尺寸下细节会受限。可试用“清晰优先”，再比较 32 / 48px 效果。" :
+        !CropTransparent ? "保留透明留白可能让图案显得更小。可试用“清晰优先”，再检查小尺寸效果。" : "";
     private string styleError = "";
     public string StyleError { get => styleError; private set { if (Set(ref styleError, value)) RefreshCommands(); } }
 
@@ -92,6 +112,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand WorkspaceCommand { get; }
     public RelayCommand HistoryCommand { get; }
     public RelayCommand ColorCommand { get; }
+    public RelayCommand PreviewSizeCommand { get; }
+    public RelayCommand ClarityPresetCommand { get; }
 
     public async Task InitializeAsync()
     {
@@ -124,6 +146,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 try { item = new(info); }
                 catch (Exception ex) { item = new(info with { OriginalIconPng = null, IsSupported = false, Error = $"图标无法读取：{ex.Message}" }); }
                 item.PropertyChanged += ItemChanged;
+                item.SetPreviewSize(PreviewPixelSize);
                 Items.Add(item);
             }
             FocusedItem = Items.FirstOrDefault(x => x.CanSelect) ?? Items.FirstOrDefault();
@@ -163,7 +186,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IsRendering = true;
         try
         {
-            await Task.Delay(180, token);
+            await Task.Delay(250, token);
             var style = CurrentStyle();
             if (style.BackgroundColor.Length != 7 || style.BackgroundColor[0] != '#' || !uint.TryParse(style.BackgroundColor.AsSpan(1), System.Globalization.NumberStyles.HexNumber, null, out _))
             {
@@ -171,16 +194,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 return;
             }
             StyleError = "";
-            var snapshot = Items.Where(x => x.CanSelect).ToArray();
+            var snapshot = Items.Where(x => x.CanSelect).OrderByDescending(x => ReferenceEquals(x, FocusedItem)).ToArray();
             foreach (var item in snapshot)
             {
                 token.ThrowIfCancellationRequested();
                 try
                 {
-                    var result = await Task.Run(() => renderer.Render(item.Info.OriginalIconPng!, style), token);
+                    var rendered = await Task.Run(() =>
+                    {
+                        var result = renderer.Render(item.Info.OriginalIconPng!, style, item.Info.SourceFrames);
+                        return (Result: result, Frames: OutputIconFrames.Decode(result.IconFile));
+                    }, token);
                     token.ThrowIfCancellationRequested();
-                    item.Rendered = result;
-                    item.Preview = ShortcutItem.Decode(result.PreviewPng);
+                    item.SetRendered(rendered.Result, rendered.Frames);
                     if (item.Status is "等待预览" or "预览失败" or "可应用")
                     {
                         item.Status = "可应用";
@@ -188,7 +214,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                     }
                 }
                 catch (OperationCanceledException) { throw; }
-                catch (Exception ex) { item.Rendered = null; item.Status = "预览失败"; item.Detail = ex.Message; }
+                catch (Exception ex) { item.SetRendered(null); item.Status = "预览失败"; item.Detail = ex.Message; }
             }
             SaveSettings(style);
         }
@@ -291,7 +317,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void RefreshCommands()
     {
         ScanCommand?.Refresh(); ChooseFolderCommand?.Refresh(); DesktopCommand?.Refresh(); SelectAllCommand?.Refresh(); SelectNoneCommand?.Refresh();
-        ApplyCommand?.Refresh(); RestoreCommand?.Refresh(); CancelCommand?.Refresh(); HistoryCommand?.Refresh(); ColorCommand?.Refresh();
+        ApplyCommand?.Refresh(); RestoreCommand?.Refresh(); CancelCommand?.Refresh(); HistoryCommand?.Refresh(); ColorCommand?.Refresh(); ClarityPresetCommand?.Refresh();
     }
     private void LoadSettings()
     {

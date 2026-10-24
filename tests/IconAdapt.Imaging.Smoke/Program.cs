@@ -71,7 +71,7 @@ var gradient = renderer.Render(padded, new IconStyle());
 using (var bitmap = SKBitmap.Decode(gradient.PreviewPng))
     Check(bitmap.GetPixel(40, 40) != bitmap.GetPixel(216, 216), "Gradient should vary across the plate.");
 
-var sizes = new[] { 16, 24, 32, 48, 64, 128, 256 };
+var sizes = new[] { 16, 20, 24, 32, 40, 48, 64, 80, 96, 128, 192, 256 };
 void VerifyIcon(RenderResult result)
 {
     var ico = result.IconFile;
@@ -104,7 +104,11 @@ var thinResult = renderer.Render(thin, noPlate);
 VerifyIcon(thinResult);
 var thinEntry = thinResult.IconFile.AsSpan(6, 16);
 var thinPng = thinResult.IconFile.AsSpan((int)BinaryPrimitives.ReadUInt32LittleEndian(thinEntry[12..]), (int)BinaryPrimitives.ReadUInt32LittleEndian(thinEntry[8..])).ToArray();
-Check(RedBounds(thinPng).Width >= 1, "A one pixel wide source should remain visible at 16 pixels.");
+using (var thinBitmap = SKBitmap.Decode(thinPng))
+{
+    double alphaMass = thinBitmap.Pixels.Sum(pixel => (double)pixel.Alpha);
+    Check(alphaMass is > 90 and < 150, "Thin marks should retain true subpixel coverage without a forced one-pixel stretch.");
+}
 var faint = Fixture(16, 16, canvas => canvas.Clear(new SKColor(255, 0, 0, 2)));
 Check(renderer.Render(faint, noPlate).PreviewPng.Length > 0, "Faint artwork should render.");
 var tiny = Fixture(1, 1, canvas => canvas.Clear(red.Color));
@@ -130,6 +134,7 @@ Parallel.For(0, 12, _ =>
         throw new InvalidOperationException("Parallel calls should be deterministic.");
 });
 checks++;
+checks += QualityChecks.Run(renderer, output);
 
 var fixtures = new Dictionary<string, byte[]>
 {

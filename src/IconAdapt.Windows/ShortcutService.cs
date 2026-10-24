@@ -97,13 +97,28 @@ public sealed class ShortcutService : IShortcutService
                     var link = ShellInterop.Read(path);
                     string? unsupported = Unsupported(path, link);
                     byte[]? png = null;
+                    int sourceWidth = 0, sourceHeight = 0;
+                    IReadOnlyList<IconFrame> sourceFrames = [];
+                    string? qualityWarning = null;
                     string? imageError = null;
                     try
                     {
                         if (unsupported is null)
                         {
                             string source = OriginalSource(path, link, history);
-                            png = ShellInterop.ExtractPng(source, source == path ? link : ShellInterop.Read(source), path);
+                            var image = ShellInterop.ExtractImage(source, source == path ? link : ShellInterop.Read(source), path);
+                            png = image?.Png;
+                            if (image is not null)
+                            {
+                                sourceWidth = image.Width;
+                                sourceHeight = image.Height;
+                                sourceFrames = image.Frames.Select(f => new IconFrame(f.Width, f.Height, f.Png)).ToArray();
+                                qualityWarning = !image.IsNative
+                                    ? "无法核实原生分辨率；原图清晰度有限，建议小尺寸使用。"
+                                    : Math.Min(sourceWidth, sourceHeight) < 128
+                                        ? $"原图仅有 {sourceWidth}×{sourceHeight} 像素，清晰度有限，建议小尺寸使用或保留原图。"
+                                        : null;
+                            }
                             if (png is null) imageError = "无法提取可用图标。";
                         }
                     }
@@ -111,7 +126,8 @@ public sealed class ShortcutService : IShortcutService
                     // A scan is a snapshot. Never return an applicable hash for a concurrently changed link.
                     if (Hash(path) != hash) unsupported = "扫描期间快捷方式已变化，请重新扫描。";
                     items.Add(new(path, Path.GetFileNameWithoutExtension(path), link.Target, link.IconPath,
-                        link.IconIndex, hash, png, unsupported is null && png is not null, unsupported ?? imageError));
+                        link.IconIndex, hash, png, unsupported is null && png is not null, unsupported ?? imageError)
+                    { SourcePixelWidth = sourceWidth, SourcePixelHeight = sourceHeight, SourceFrames = sourceFrames, QualityWarning = qualityWarning });
                 }
                 catch (Exception e) { items.Add(new(path, Path.GetFileNameWithoutExtension(path), "", "", 0, "", null, false, e.Message)); }
             }
