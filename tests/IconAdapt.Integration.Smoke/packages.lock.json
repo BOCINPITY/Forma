@@ -27,7 +27,7 @@
       "iconadapt.imaging": {
         "type": "Project",
         "dependencies": {
-          "IconAdapt.Core": "[0.1.0-preview.4, )",
+          "IconAdapt.Core": "[0.1.0-preview.5, )",
           "SkiaSharp": "[4.153.1, 4.153.1]",
           "SkiaSharp.NativeAssets.Win32": "[4.153.1, 4.153.1]"
         }
@@ -35,7 +35,7 @@
       "iconadapt.windows": {
         "type": "Project",
         "dependencies": {
-          "IconAdapt.Core": "[0.1.0-preview.4, )"
+          "IconAdapt.Core": "[0.1.0-preview.5, )"
         }
       }
     },

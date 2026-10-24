@@ -7,7 +7,7 @@ $dotnetExecutable = Resolve-IconAdaptDotnet -ProjectRoot $projectRoot
 $projectPath = Join-Path $projectRoot 'src\IconAdapt.App\IconAdapt.App.csproj'
 $version = ([xml][System.IO.File]::ReadAllText((Join-Path $projectRoot 'Directory.Build.props'))).Project.PropertyGroup.Version
 if ($version -notmatch '^[0-9][0-9A-Za-z.\-]*$') { throw '无效的构建版本号。' }
-$packageName = "IconAdapt-$version-win-x64"
+$packageName = "Forma-$version-win-x64"
 $outputPath = Join-Path $projectRoot (Join-Path 'artifacts' $packageName)
 
 Push-Location $projectRoot
@@ -35,6 +35,6 @@ try {
         "$archiveHash  $packageName.zip" | Set-Content -LiteralPath ($archivePath + '.sha256') -Encoding ASCII
         Write-Output "ZIP：$archivePath"
     }
-    Write-Output "启动文件：$(Join-Path $outputPath 'IconAdapt.exe')"
+    Write-Output "启动文件：$(Join-Path $outputPath 'Forma.exe')"
 }
 finally { Pop-Location }

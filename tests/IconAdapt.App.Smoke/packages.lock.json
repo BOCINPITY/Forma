@@ -21,12 +21,12 @@
         "resolved": "4.153.1",
         "contentHash": "Yqg6rChTVh0BUE8QQxtOA3uUBnihfgID4yex/AvDa0+os2bVcBjmI3Qj9tnOB+R1hd/Jry1Gwl8qw5JI9HZG8Q=="
       },
-      "IconAdapt": {
+      "Forma": {
         "type": "Project",
         "dependencies": {
-          "IconAdapt.Core": "[0.1.0-preview.4, )",
-          "IconAdapt.Imaging": "[0.1.0-preview.4, )",
-          "IconAdapt.Windows": "[0.1.0-preview.4, )"
+          "IconAdapt.Core": "[0.1.0-preview.5, )",
+          "IconAdapt.Imaging": "[0.1.0-preview.5, )",
+          "IconAdapt.Windows": "[0.1.0-preview.5, )"
         }
       },
       "iconadapt.core": {
@@ -35,7 +35,7 @@
       "iconadapt.imaging": {
         "type": "Project",
         "dependencies": {
-          "IconAdapt.Core": "[0.1.0-preview.4, )",
+          "IconAdapt.Core": "[0.1.0-preview.5, )",
           "SkiaSharp": "[4.153.1, 4.153.1]",
           "SkiaSharp.NativeAssets.Win32": "[4.153.1, 4.153.1]"
         }
@@ -43,7 +43,7 @@
       "iconadapt.windows": {
         "type": "Project",
         "dependencies": {
-          "IconAdapt.Core": "[0.1.0-preview.4, )"
+          "IconAdapt.Core": "[0.1.0-preview.5, )"
         }
       }
     },

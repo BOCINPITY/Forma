@@ -40,7 +40,7 @@ public sealed class ShortcutService : IShortcutService
         if (copy.Select(c => c.ShortcutPath).Distinct(StringComparer.OrdinalIgnoreCase).Count() != copy.Length)
             throw new ArgumentException("同一批次不能重复包含快捷方式。", nameof(changes));
         if (copy.Any(c => IsStoragePath(c.ShortcutPath)))
-            throw new ArgumentException("不能修改 IconAdapt 存储目录内的备份。", nameof(changes));
+            throw new ArgumentException("不能修改 Forma 存储目录内的备份。", nameof(changes));
         return Run(() => Apply(copy, cancellationToken), cancellationToken);
     }
 
@@ -365,7 +365,7 @@ public sealed class ShortcutService : IShortcutService
         string lockPath = Path.Combine(root, "operations.lock");
         EnsureSafe(lockPath);
         try { return new(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-        catch (IOException e) { throw new IOException("另一个 IconAdapt 实例正在操作此记录目录，请稍后重试。", e); }
+        catch (IOException e) { throw new IOException("另一个 Forma 实例正在操作此记录目录，请稍后重试。", e); }
     }
 
     private List<OperationBatch> ReadHistory()

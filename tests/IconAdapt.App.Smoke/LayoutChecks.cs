@@ -1,4 +1,5 @@
 using System.IO;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -58,6 +59,7 @@ internal static class LayoutChecks
             Settle(window);
             VerifyChrome(window);
             VerifyControls(window);
+            VerifyIdentity(window);
             vm.FocusedItem = vm.Items[4];
             vm.PreviewSizeCommand.Execute("48");
             Settle(window);
@@ -137,6 +139,8 @@ internal static class LayoutChecks
         Check(columns >= 4, $"Gallery at {requested.Width}px must show at least four columns; actual {columns}.");
         var preview = Named<FrameworkElement>(window, "PreviewPanel");
         foreach (var image in Descendants(preview).OfType<NativePixelImage>()) VisibleWithin(image, preview);
+        foreach (var section in new[] { settings, preview, gallery })
+            VerifySingleLineText(section);
         var actionBounds = Bounds(Named<Button>(window, "ApplyButton"), root);
         Check(actionBounds.Top >= Bounds(settings, root).Bottom, "Apply action must stay below the basic settings.");
         var scrolling = Descendants(gallery).OfType<ScrollViewer>().First();
@@ -180,6 +184,37 @@ internal static class LayoutChecks
         var textSurface = Descendants(host).OfType<FrameworkElement>().First(x => x.GetType().Name == "TextBoxView");
         Check(textSurface.ActualHeight >= color.FontSize, "Color input must leave enough vertical space for its text, without duplicate padding.");
         VisibleWithin(textSurface, color);
+    }
+
+    private static void VerifyIdentity(MainWindow window)
+    {
+        Check(window.Title.StartsWith("Forma", StringComparison.Ordinal), "Window title must identify the renamed product.");
+        var root = (FrameworkElement)window.Content;
+        var mark = Descendants(root).OfType<FrameworkElement>().FirstOrDefault(x => x.GetType().Name == "BrandMark");
+        Check(mark != null, "The title bar must use the code-drawn brand mark.");
+        VisibleWithin(mark!, root);
+        Check(Descendants(root).OfType<TextBlock>().Any(x => x.IsVisible && x.Text == "Forma"), "The visible title bar must show the new product name.");
+
+        string assembly = typeof(MainWindow).Assembly.GetName().Name!;
+        var resource = Application.GetResourceStream(new Uri($"pack://application:,,,/{assembly};component/Assets/IconAdapt.ico"))
+            ?? throw new InvalidOperationException("Application icon resource is missing.");
+        using var stream = resource.Stream;
+        var decoder = new IconBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+        foreach (int size in new[] { 16, 20, 24, 32, 48, 64, 128, 256 })
+            Check(decoder.Frames.Any(x => x.PixelWidth == size && x.PixelHeight == size), $"Application icon must carry its own {size}px frame.");
+    }
+
+    private static void VerifySingleLineText(FrameworkElement section)
+    {
+        foreach (var text in Descendants(section).OfType<TextBlock>().Where(x => x.IsVisible &&
+            !string.IsNullOrWhiteSpace(x.Text) && x.TextWrapping == TextWrapping.NoWrap))
+        {
+            var sample = new FormattedText(text.Text, CultureInfo.CurrentUICulture, text.FlowDirection,
+                new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch), text.FontSize,
+                text.Foreground, VisualTreeHelper.GetDpi(text).PixelsPerDip);
+            Check(text.ActualHeight + 1 >= sample.Height,
+                $"Text '{text.Text}' must have room for its full line at {text.FontSize}px: actual {text.ActualHeight:0.##}, required {sample.Height:0.##}.");
+        }
     }
 
     private static T Named<T>(FrameworkElement root, string name) where T : FrameworkElement =>
@@ -272,12 +307,12 @@ internal static class LayoutChecks
         public int WriteAttempts { get; private set; }
         public LayoutService(string root)
         {
-            string[] names = ["终端", "备忘录", "相机", "音乐", "文件", "图形工作室", "阅读器", "日历", "邮件", "地图", "计算器", "一个很长的应用名称用于检查文字省略与紧凑布局"];
+            string[] names = ["Windows Terminal", "备忘录", "相机", "音乐", "文件管理器", "Visual Studio Code", "阅读器", "日历", "邮件", "PyCharm 2026.2", "计算器", "一个很长的应用名称用于检查文字省略与紧凑布局"];
             fixtures = Enumerable.Range(0, 31).Select(i =>
             {
                 int size = i == 0 ? 32 : 128;
                 byte[] png = Icon(i % 6, size);
-                return new ShortcutInfo(Path.Combine(root, $"fixture-{i}.lnk"), names[i % names.Length], "", "", 0, "", png, i != 7, i == 7 ? "目标程序不存在，测试项目无法适配。" : null)
+                return new ShortcutInfo(Path.Combine(root, $"{i:00}-{names[i % names.Length]}.lnk"), names[i % names.Length], "", "", 0, "", png, i != 7, i == 7 ? "目标程序不存在，测试项目无法适配。" : null)
                 { SourcePixelWidth = size, SourcePixelHeight = size, SourceFrames = [new IconFrame(size, size, png)] };
             }).ToArray();
             batch = new OperationBatch

@@ -4,7 +4,10 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <RootNamespace>IconAdapt.App</RootNamespace>
-    <AssemblyName>IconAdapt</AssemblyName>
+    <AssemblyName>Forma</AssemblyName>
+    <Product>Forma</Product>
+    <Title>Forma</Title>
+    <Description>桌面图标适配工具</Description>
     <ApplicationIcon>Assets\IconAdapt.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>

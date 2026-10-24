@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <rect x="12" y="12" width="232" height="232" rx="60" fill="#7465DE"/>
-  <rect x="56" y="56" width="64" height="64" rx="16" fill="#FFFFFF"/>
-  <rect x="136" y="56" width="64" height="64" rx="16" fill="#DAD3FF"/>
-  <rect x="56" y="136" width="64" height="64" rx="16" fill="#DAD3FF"/>
-  <rect x="136" y="136" width="64" height="64" rx="16" fill="#FFFFFF"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Forma">
+  <title>Forma - two forms, one frame</title>
+  <path fill="#263444" d="M68,8 H188 Q248,8 248,68 V188 Q248,248 188,248 H68 Q8,248 8,188 V68 Q8,8 68,8 Z"/>
+  <path fill="#91B9CF" d="M140,48 H180 Q208,48 208,76 V132 Q208,160 180,160 H140 Q112,160 112,132 V76 Q112,48 140,48 Z"/>
+  <path fill="#F8F5ED" d="M80,88 H144 Q176,88 176,120 V176 Q176,208 144,208 H80 Q48,208 48,176 V120 Q48,88 80,88 Z"/>
+  <path fill="#263444" d="M92,120 H132 Q144,120 144,132 V164 Q144,176 132,176 H92 Q80,176 80,164 V132 Q80,120 92,120 Z"/>
 </svg>

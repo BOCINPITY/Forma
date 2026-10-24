@@ -49,7 +49,7 @@ public partial class App : Application
     {
         e.Handled = true;
         if (smokeOutput != null) { ReportFatal(e.Exception); return; }
-        MessageBox.Show($"操作出现异常：{e.Exception.Message}\n\n请核对恢复记录。原始快捷方式备份会保留在本机。", "IconAdapt", MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show($"操作出现异常：{e.Exception.Message}\n\n请核对恢复记录。原始快捷方式备份会保留在本机。", "Forma", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private void ReportFatal(Exception ex)
@@ -59,7 +59,7 @@ public partial class App : Application
             Directory.CreateDirectory(Path.GetDirectoryName(smokeOutput)!);
             File.WriteAllText(smokeOutput + ".error.txt", ex.ToString());
         }
-        else MessageBox.Show($"IconAdapt 无法启动：{ex.Message}", "启动失败", MessageBoxButton.OK, MessageBoxImage.Error);
+        else MessageBox.Show($"Forma 无法启动：{ex.Message}", "启动失败", MessageBoxButton.OK, MessageBoxImage.Error);
         Shutdown(1);
     }
 

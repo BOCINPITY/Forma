@@ -1,10 +1,10 @@
-# IconAdapt
+# Forma
 
 面向 Windows 的桌面图标适配 App，让不同应用的图标在视觉大小、底板和留白上保持协调。
 
 ## 当前状态
 
-当前版本：`0.1.0-preview.4`。本轮重做桌面界面：紧凑图标网格、顶部导航、固定预览与设置区，以及始终可见的底部操作栏。保留原生图标帧、实际像素预览和“清晰优先”预设。
+当前版本：`0.1.0-preview.5`。产品更名为 **Forma**，重新设计应用标志与中英文字体层级。标志完全由几何代码绘制，并生成 SVG、多尺寸 ICO 和窗口中的矢量标志。
 
 已实现桌面 / 文件夹扫描、图标网格选择、实时前后对比、渐变 / 纯色 / 透明底板、大小与圆角调整、多尺寸 ICO、批量应用、持久备份、历史记录和按批次恢复。
 
@@ -12,7 +12,9 @@ Release 构建及图像、Windows COM、跨模块集成验证已通过；WPF 界
 
 ## 直接使用
 
-构建好的便携版位于 `artifacts\IconAdapt-0.1.0-preview.4-win-x64\`，完整保留该文件夹，双击 `IconAdapt.exe` 启动。自包含 Windows x64 包无需另装 .NET SDK。按版本分别输出，避免覆盖仍在运行的旧程序。
+构建好的便携版位于 `artifacts\Forma-0.1.0-preview.5-win-x64\`，完整保留该文件夹，双击 `Forma.exe` 启动。自包含 Windows x64 包无需另装 .NET SDK。按版本分别输出，避免覆盖仍在运行的旧程序。
+
+Forma 原名 IconAdapt。升级后沿用 `%LOCALAPPDATA%\IconAdapt\` 中的原有设置、备份和恢复记录；无需迁移或改名数据目录。源码目录与模块命名也保留原技术名称。
 
 针对缩放模糊：先点击“清晰优先”，再比较 32 / 48px 的实际输出。该按钮会去除透明留白并把图案占比设为 80%，不会在升级时静默改动原有设置；原图确实较小时会提示限制。详见 [清晰度设计与验收](docs/icon-quality.md)。
 
@@ -71,6 +73,7 @@ licenses/                    上游许可原文
 - [应用失败排查与解决方案](docs/troubleshooting-apply.md)
 - [清晰度设计与验收](docs/icon-quality.md)
 - [界面设计](docs/ui-design.md)
+- [品牌、字体与代码图标](docs/brand.md)
 - [产品范围](docs/product.md)
 - [技术架构](docs/architecture.md)
 - [技术选型记录](docs/adr/0001-windows-native-stack.md)

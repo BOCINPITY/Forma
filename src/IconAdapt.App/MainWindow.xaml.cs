@@ -77,7 +77,7 @@ public partial class MainWindow : Window
         if (!viewModel.IsBusy && !viewModel.IsRendering) { allowClose = true; return; }
         e.Cancel = true;
         if (closing) return;
-        if (viewModel.IsBusy && MessageBox.Show("操作仍在进行。停止并退出？\n\n程序会等待当前文件写入及操作记录保存完成，再关闭窗口。", "退出 IconAdapt", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+        if (viewModel.IsBusy && MessageBox.Show("操作仍在进行。停止并退出？\n\n程序会等待当前文件写入及操作记录保存完成，再关闭窗口。", "退出 Forma", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
         closing = true;
         viewModel.Cancel();
         await viewModel.WaitForIdleAsync();
