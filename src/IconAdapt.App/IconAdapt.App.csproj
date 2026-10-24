@@ -5,5 +5,12 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>IconAdapt.App</RootNamespace>
     <AssemblyName>IconAdapt</AssemblyName>
+    <ApplicationIcon>Assets\IconAdapt.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\IconAdapt.ico" />
+    <ProjectReference Include="..\IconAdapt.Core\IconAdapt.Core.csproj" />
+    <ProjectReference Include="..\IconAdapt.Windows\IconAdapt.Windows.csproj" />
+    <ProjectReference Include="..\IconAdapt.Imaging\IconAdapt.Imaging.csproj" />
+  </ItemGroup>
 </Project>

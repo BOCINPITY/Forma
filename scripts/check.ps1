@@ -1,24 +1,37 @@
-﻿$ErrorActionPreference = 'Stop'
+﻿param([switch] $SkipSmoke)
+
+$ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $solutionPath = Join-Path $projectRoot 'IconAdapt.slnx'
 
-if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    throw '未找到 dotnet。请安装 .NET 10 SDK，重新打开 PowerShell 后再运行检查。'
-}
+. (Join-Path $PSScriptRoot 'common.ps1')
+$dotnetExecutable = Resolve-IconAdaptDotnet -ProjectRoot $projectRoot
 
 Push-Location $projectRoot
 try {
-    & dotnet --version
+    & $dotnetExecutable --version
     if ($LASTEXITCODE -ne 0) { throw '.NET SDK 解析失败，请检查 global.json 和已安装的 SDK。' }
 
-    & dotnet restore $solutionPath
+    & $dotnetExecutable restore $solutionPath --locked-mode
     if ($LASTEXITCODE -ne 0) { throw '依赖还原失败。' }
 
-    & dotnet build $solutionPath --configuration Release --no-restore
+    & $dotnetExecutable build $solutionPath --configuration Release --no-restore
     if ($LASTEXITCODE -ne 0) { throw 'Release 构建失败。' }
 
-    Write-Output 'Release 构建通过。当前尚无自动化测试工程，仍需执行界面和功能验证。'
+    if (-not $SkipSmoke) {
+        $smokeProjects = @(
+            'tests\IconAdapt.Imaging.Smoke\IconAdapt.Imaging.Smoke.csproj',
+            'tests\IconAdapt.Windows.Smoke\IconAdapt.Windows.Smoke.csproj',
+            'tests\IconAdapt.Integration.Smoke\IconAdapt.Integration.Smoke.csproj'
+        )
+        foreach ($smokeProject in $smokeProjects) {
+            & $dotnetExecutable run --project (Join-Path $projectRoot $smokeProject) --configuration Release --no-build
+            if ($LASTEXITCODE -ne 0) { throw "验证失败：$smokeProject" }
+        }
+    }
+
+    Write-Output '检查通过。真实桌面效果、多 DPI 和安装体验仍需单独验证。'
 }
 finally {
     Pop-Location

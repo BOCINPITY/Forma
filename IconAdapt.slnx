@@ -1,3 +1,9 @@
 <Solution>
   <Project Path="src/IconAdapt.App/IconAdapt.App.csproj" />
+  <Project Path="src/IconAdapt.Core/IconAdapt.Core.csproj" />
+  <Project Path="src/IconAdapt.Imaging/IconAdapt.Imaging.csproj" />
+  <Project Path="src/IconAdapt.Windows/IconAdapt.Windows.csproj" />
+  <Project Path="tests/IconAdapt.Imaging.Smoke/IconAdapt.Imaging.Smoke.csproj" />
+  <Project Path="tests/IconAdapt.Windows.Smoke/IconAdapt.Windows.Smoke.csproj" />
+  <Project Path="tests/IconAdapt.Integration.Smoke/IconAdapt.Integration.Smoke.csproj" />
 </Solution>

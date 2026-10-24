@@ -1,0 +1,298 @@
+using System.Drawing;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text.Json;
+using IconAdapt.Core;
+using IconAdapt.Windows;
+
+// Deliberately never discovers or writes the real desktop. All link writes are beneath .local.
+string repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+string testRoot = Path.Combine(repo, ".local", "windows-smoke", Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(testRoot);
+string links = Path.Combine(testRoot, "中文 快捷方式");
+Directory.CreateDirectory(links);
+string storage = Path.Combine(testRoot, "storage");
+string target = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
+string shortcut = Path.Combine(links, "中文 application.lnk");
+CreateLink(shortcut, target, "/c echo 测试", testRoot, "Smoke 中文说明", target + ",0");
+var initialLaunch = ReadLink(shortcut);
+string baseline = Hash(shortcut);
+using var service = new ShortcutService(storage);
+int assertions = 0;
+void Check(bool condition, string name)
+{
+    if (!condition) throw new Exception("FAILED: " + name);
+    assertions++;
+    Console.WriteLine("PASS: " + name);
+}
+using var iconStream = new MemoryStream();
+SystemIcons.Application.Save(iconStream);
+byte[] ico = iconStream.ToArray();
+var initial = await service.ScanAsync(links);
+Check(initial.Items.Count == 1 && initial.Items[0].IsSupported, "scan custom directory with Chinese/spaces");
+Check(initial.Items[0].OriginalIconPng is { Length: > 0 }, "icon extracted");
+using (var pngStream = new MemoryStream(initial.Items[0].OriginalIconPng!))
+using (var bitmap = new Bitmap(pngStream))
+    Check(bitmap.Width == 256 && bitmap.Height == 256, "high-resolution 256 px source extraction");
+byte[] originalPng = initial.Items[0].OriginalIconPng!;
+Check(Hash(shortcut) == baseline, "scan does not mutate source");
+var a = await service.ApplyAsync([new(shortcut, initial.Items[0].FileHash, ico)]);
+Check(a.Items[0].State == "applied", "apply succeeds: " + a.Items[0].Error);
+Check(File.Exists(a.Items[0].BackupPath) && Hash(a.Items[0].BackupPath) == baseline, "original backup hash");
+Check(File.Exists(a.Items[0].GeneratedIconPath), "persistent icon exists");
+var launchAfter = ReadLink(shortcut);
+Check(launchAfter.Target == initialLaunch.Target && launchAfter.Arguments == initialLaunch.Arguments && launchAfter.WorkingDirectory == initialLaunch.WorkingDirectory && launchAfter.Description == initialLaunch.Description, "launch properties preserved");
+Check(launchAfter.Icon == a.Items[0].GeneratedIconPath + ",0", "new icon reference");
+var adapted = await service.ScanAsync(links);
+Check(adapted.Items[0].OriginalIconPng!.AsSpan().SequenceEqual(originalPng), "rescan previews original icon, avoids repeated framing");
+var b = await service.ApplyAsync([new(shortcut, adapted.Items[0].FileHash, ico)]);
+Check(b.Items[0].State == "applied", "repeat application creates second layer");
+var premature = await service.RestoreAsync(a.Id);
+Check(premature.Items[0].State == "conflict", "out-of-order restore detects later batch");
+var restoredB = await service.RestoreAsync(b.Id);
+Check(restoredB.Items[0].State == "restored", "restore second batch");
+Check(ReadLink(shortcut).Icon == a.Items[0].GeneratedIconPath + ",0", "second restore restores first icon");
+var restoredA = await service.RestoreAsync(a.Id);
+Check(restoredA.Items[0].State == "restored", "restore first batch after second: " + restoredA.Items[0].Error);
+Check(ReadLink(shortcut).Icon == initialLaunch.Icon, "original icon restored");
+Check((await service.RestoreAsync(a.Id)).Items[0].State == "restored", "restore is idempotent");
+var fresh = (await service.ScanAsync(links)).Items[0];
+var c = await service.ApplyAsync([new(shortcut, fresh.FileHash, ico)]);
+EditArguments(shortcut, "/c echo external");
+string externalHash = Hash(shortcut);
+var conflict = await service.RestoreAsync(c.Id);
+Check(conflict.Items[0].State == "conflict" && Hash(shortcut) == externalHash, "external launch modification preserved");
+var stale = await service.ApplyAsync([new(shortcut, fresh.FileHash, ico)]);
+Check(stale.Items[0].State == "failed" && Hash(shortcut) == externalHash, "stale scan hash rejected");
+fresh = (await service.ScanAsync(links)).Items[0];
+var bad = await service.ApplyAsync([new(shortcut, fresh.FileHash, [1, 2, 3])]);
+Check(bad.Items[0].State == "failed" && Hash(shortcut) == externalHash, "invalid ICO rejected before mutation");
+string missing = Path.Combine(links, "missing.lnk");
+var partial = await service.ApplyAsync([new(missing, fresh.FileHash, ico), new(shortcut, fresh.FileHash, ico)]);
+Check(partial.Items[0].State == "failed" && partial.Items[1].State == "applied", "partial failure keeps successful item");
+Check((await service.RestoreAsync(partial.Id)).Items[1].State == "restored", "partial batch can restore");
+
+// Simulate a crash after desktop write and before journal completion by removing AppliedHash.
+fresh = (await service.ScanAsync(links)).Items[0];
+var pending = await service.ApplyAsync([new(shortcut, fresh.FileHash, ico)]);
+pending.Items[0].State = "pending";
+pending.Items[0].AppliedHash = null;
+SaveJournal(pending);
+Check((await service.RestoreAsync(pending.Id)).Items[0].State == "restored", "pending write recovery");
+
+// Simulate a crash after intent was persisted, before any desktop write.
+fresh = (await service.ScanAsync(links)).Items[0];
+var pendingBefore = await service.ApplyAsync([new(shortcut, fresh.FileHash, ico)]);
+File.Copy(pendingBefore.Items[0].BackupPath, shortcut, true);
+pendingBefore.Items[0].State = "pending";
+pendingBefore.Items[0].AppliedHash = null;
+SaveJournal(pendingBefore);
+using (var locked = new FileStream(shortcut, FileMode.Open, FileAccess.Read, FileShare.None))
+    Check((await service.RestoreAsync(pendingBefore.Id)).Items[0].State == "conflict", "locked pending-before-write reports recoverable conflict");
+Check((await service.RestoreAsync(pendingBefore.Id)).Items[0].State == "restored", "pending intent recovers after transient lock is released");
+
+// Simulate a crash after a restore's filesystem write but before updating its parent/journal.
+fresh = (await service.ScanAsync(links)).Items[0];
+var crashParent = await service.ApplyAsync([new(shortcut, fresh.FileHash, ico)]);
+fresh = (await service.ScanAsync(links)).Items[0];
+var crashChild = await service.ApplyAsync([new(shortcut, fresh.FileHash, ico)]);
+Check((await service.RestoreAsync(crashChild.Id)).Items[0].State == "restored", "prepare interrupted restore fixture");
+SaveJournal(crashParent); // Put back its pre-restore expected hash.
+crashChild.Items[0].State = "restoring";
+SaveJournal(crashChild);
+Check((await service.RestoreAsync(crashChild.Id)).Items[0].State == "restored", "restoring crash window reconciled");
+Check((await service.RestoreAsync(crashParent.Id)).Items[0].State == "restored", "parent hash repaired after interrupted child restore");
+
+string readOnly = Path.Combine(links, "Read only.lnk");
+CreateLink(readOnly, target, "", testRoot, "readonly", "");
+var readOnlyInfo = (await service.ScanAsync(links)).Items.Single(x => x.Path == readOnly);
+File.SetAttributes(readOnly, File.GetAttributes(readOnly) | FileAttributes.ReadOnly);
+try
+{
+    var refused = await service.ApplyAsync([new(readOnly, readOnlyInfo.FileHash, ico)]);
+    Check(refused.Items[0].State == "failed" && Hash(readOnly) == readOnlyInfo.FileHash, "read-only file fails without mutation");
+}
+finally { File.SetAttributes(readOnly, File.GetAttributes(readOnly) & ~FileAttributes.ReadOnly); }
+
+string document = Path.Combine(testRoot, "text.txt");
+File.WriteAllText(document, "sample");
+CreateLink(Path.Combine(links, "Document.lnk"), document, "", testRoot, "document", "");
+File.WriteAllText(Path.Combine(links, "Corrupt.lnk"), "not a shell link");
+string missingTarget = Path.Combine(links, "Missing target.lnk");
+CreateLink(missingTarget, Path.Combine(testRoot, "no.exe"), "", testRoot, "missing", "");
+var unsupported = await service.ScanAsync(links);
+Check(unsupported.Items.Count(x => !x.IsSupported) == 3, "documents, malformed links and missing executables are unsupported");
+var unavailable = await service.ScanAsync(Path.Combine(testRoot, "no-directory"));
+Check(unavailable.Items.Count == 0 && unavailable.Warnings.Count == 1, "missing directory has visible warning");
+
+var history = await service.GetHistoryAsync();
+Check(history.Count >= 7 && history.SequenceEqual(history.OrderByDescending(x => x.CreatedAt)), "persistent history newest first");
+using (var cts = new CancellationTokenSource())
+{
+    cts.Cancel();
+    bool cancelled = false;
+    try { await service.ScanAsync(links, cts.Token); } catch (OperationCanceledException) { cancelled = true; }
+    Check(cancelled, "cancellation before operation");
+}
+bool traversalRejected = false;
+try { await service.RestoreAsync("..\\outside"); } catch (ArgumentException) { traversalRejected = true; }
+Check(traversalRejected, "batch path traversal rejected");
+
+bool backupWriteRejected = false;
+try { await service.ApplyAsync([new(a.Items[0].BackupPath, baseline, ico)]); } catch (ArgumentException) { backupWriteRejected = true; }
+Check(backupWriteRejected, "internal backup cannot be selected as a shortcut target");
+
+string cancellationLinks = Path.Combine(testRoot, "cancellation links");
+string cancellationStorage = Path.Combine(testRoot, "cancellation storage");
+Directory.CreateDirectory(cancellationLinks);
+var cancellationChanges = new List<IconChange>();
+for (int i = 0; i < 64; i++)
+{
+    string path = Path.Combine(cancellationLinks, i + ".lnk");
+    File.Copy(shortcut, path);
+    cancellationChanges.Add(new(path, Hash(path), ico));
+}
+using (var cancellableService = new ShortcutService(cancellationStorage))
+using (var cts = new CancellationTokenSource())
+{
+    var applying = cancellableService.ApplyAsync(cancellationChanges, cts.Token);
+    // Cancel only after observing a durably applied entry; exercise the actual partial-change path.
+    while (!applying.IsCompleted)
+    {
+        string operations = Path.Combine(cancellationStorage, "operations");
+        if (Directory.Exists(operations))
+        {
+            foreach (string file in Directory.GetFiles(operations, "*.json"))
+            {
+                try
+                {
+                    var observed = JsonSerializer.Deserialize<OperationBatch>(File.ReadAllText(file));
+                    if (observed?.Items.Any(x => x.State == "applied") == true) cts.Cancel();
+                }
+                catch (IOException) { }
+            }
+        }
+        if (cts.IsCancellationRequested) break;
+        await Task.Delay(1);
+    }
+    var cancelledBatch = await applying;
+    Check(cancelledBatch.Items.Any(x => x.State == "applied") && cancelledBatch.Items.Any(x => x.State == "cancelled"), "mid-batch cancellation returns applied and cancelled entries");
+    var journal = (await cancellableService.GetHistoryAsync()).Single();
+    Check(journal.Items.Select(x => x.State).SequenceEqual(cancelledBatch.Items.Select(x => x.State)), "cancellation retains all applied outcomes in durable journal");
+    var recoveredCancellation = await cancellableService.RestoreAsync(cancelledBatch.Id);
+    Check(recoveredCancellation.Items.All(x => x.State is "restored" or "cancelled"), "cancelled batch remains recoverable");
+}
+
+string blockedRoot = Path.Combine(testRoot, "not-a-directory");
+File.WriteAllText(blockedRoot, "occupied");
+using (var blocked = new ShortcutService(blockedRoot))
+{
+    bool blockedStorage = false;
+    fresh = (await service.ScanAsync(links)).Items.Single(x => x.Path == shortcut);
+    string hashBefore = Hash(shortcut);
+    try { await blocked.ApplyAsync([new(shortcut, fresh.FileHash, ico)]); } catch (IOException) { blockedStorage = true; }
+    Check(blockedStorage && Hash(shortcut) == hashBefore, "unavailable journal storage prevents shortcut writes");
+}
+
+// A journal cannot redirect backup reads or generated-icon writes outside its batch storage.
+string unsafeJournal = Path.Combine(storage, "operations", pendingBefore.Id + ".json");
+string validJournal = File.ReadAllText(unsafeJournal);
+pendingBefore.Items[0].BackupPath = shortcut;
+SaveJournal(pendingBefore);
+bool invalidRecord = false;
+try { await service.GetHistoryAsync(); } catch (InvalidDataException) { invalidRecord = true; }
+Check(invalidRecord, "malformed journal boundary rejected");
+File.WriteAllText(unsafeJournal, validJournal);
+using (var parsed = JsonDocument.Parse(validJournal))
+{
+    var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(validJournal)!;
+    fields.Remove("SchemaVersion");
+    File.WriteAllText(unsafeJournal, JsonSerializer.Serialize(fields));
+    bool missingSchema = false;
+    try { await service.GetHistoryAsync(); } catch (InvalidDataException) { missingSchema = true; }
+    Check(missingSchema, "missing schema is rejected rather than defaulted");
+    File.WriteAllText(unsafeJournal, validJournal);
+}
+Console.WriteLine($"Windows smoke passed: {assertions} assertions. Test artifacts: {testRoot}");
+
+void SaveJournal(OperationBatch batch) => File.WriteAllText(Path.Combine(storage, "operations", batch.Id + ".json"), JsonSerializer.Serialize(batch));
+static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+
+// WScript.Shell is only the test fixture author/reader. Production uses IShellLink on a dedicated STA.
+static void CreateLink(string path, string target, string args, string working, string description, string icon)
+{
+    Sta(() =>
+    {
+        object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+        object? instance = null;
+        try
+        {
+            dynamic script = shell;
+            instance = script.CreateShortcut(path);
+            dynamic link = instance;
+            link.TargetPath = target;
+            link.Arguments = args;
+            link.WorkingDirectory = working;
+            link.Description = description;
+            if (icon.Length > 0) link.IconLocation = icon;
+            link.Save();
+        }
+        finally
+        {
+            if (instance is not null) Marshal.FinalReleaseComObject(instance);
+            Marshal.FinalReleaseComObject(shell);
+        }
+    });
+}
+static (string Target, string Arguments, string WorkingDirectory, string Description, string Icon) ReadLink(string path)
+{
+    (string, string, string, string, string) result = default;
+    Sta(() =>
+    {
+        object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+        object? instance = null;
+        try
+        {
+            dynamic script = shell;
+            instance = script.CreateShortcut(path);
+            dynamic link = instance;
+            result = ((string)link.TargetPath, (string)link.Arguments, (string)link.WorkingDirectory, (string)link.Description, (string)link.IconLocation);
+        }
+        finally
+        {
+            if (instance is not null) Marshal.FinalReleaseComObject(instance);
+            Marshal.FinalReleaseComObject(shell);
+        }
+    });
+    return result;
+}
+static void EditArguments(string path, string arguments)
+{
+    Sta(() =>
+    {
+        object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+        object? instance = null;
+        try
+        {
+            dynamic script = shell;
+            instance = script.CreateShortcut(path);
+            dynamic link = instance;
+            link.Arguments = arguments;
+            link.Save();
+        }
+        finally
+        {
+            if (instance is not null) Marshal.FinalReleaseComObject(instance);
+            Marshal.FinalReleaseComObject(shell);
+        }
+    });
+}
+static void Sta(Action action)
+{
+    Exception? error = null;
+    var thread = new Thread(() => { try { action(); } catch (Exception e) { error = e; } });
+    thread.SetApartmentState(ApartmentState.STA);
+    thread.Start();
+    thread.Join();
+    if (error is not null) throw error;
+}

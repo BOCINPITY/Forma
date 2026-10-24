@@ -3,6 +3,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Deterministic>true</Deterministic>
-    <Version>0.1.0-dev</Version>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <Version>0.1.0-preview.1</Version>
   </PropertyGroup>
 </Project>
