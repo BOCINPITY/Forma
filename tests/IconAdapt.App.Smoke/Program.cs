@@ -87,6 +87,18 @@ internal static class Program
             "Conditional recovery guidance must stay available without making a successful item look like an error.");
         Check(notifications.Contains(nameof(vm.NoticeHasIssue)) && notifications.Contains(nameof(vm.NoticeSummary)),
             "Changing an item's outcome must update the global notice bindings.");
+        Check(vm.BackdropIndex == (int)BackdropStyle.Gradient, "Existing saved styles must stay unchanged until a preset is explicitly chosen.");
+        vm.BackgroundColor = "invalid";
+        vm.MacPresetCommand.Execute(null);
+        vm.WaitForIdleAsync().GetAwaiter().GetResult();
+        Check(vm.IsMacStyle && !vm.CanChooseColor && vm.ContentScale == .8 && vm.CornerRadius == .23 && vm.CropTransparent,
+            "The explicit macOS preset must select automatic color and readable material proportions.");
+        Check(vm.StyleError.Length == 0 && vm.ApplyCommand.CanExecute(null),
+            "An old invalid manual color must not trap the automatic-color preset in an error with a hidden editor.");
+        using (var reloaded = new MainViewModel(new FakeService(png, root), renderer, root, root))
+            Check(reloaded.IsMacStyle, "The macOS style must survive a settings reload without being clamped to the old enum range.");
+        using (var fresh = new MainViewModel(new FakeService(png, root), renderer, root, Path.Combine(root, "fresh")))
+            Check(fresh.IsMacStyle && fresh.ContentScale == .8, "A fresh installation must start with the new macOS style.");
         Console.WriteLine("PASS: WPF exported-pixel equality, native-source size, frame switching, source propagation and explicit clarity preset.");
         LayoutChecks.Run();
     }

@@ -48,17 +48,20 @@ public sealed class IconRenderer : IIconRenderer
             // Keep the canonical source for the 256 px preview/ICO. Small native resources
             // can contain deliberately simplified artwork; select by actual drawn span,
             // not metadata dimensions, so transparent padding cannot trigger enlargement.
-            double target = size * style.ContentScale;
+            double target = size * (style.Backdrop == BackdropStyle.MacOS
+                ? MacIconMaterial.ContentScale(style, primary.Appearance) : style.ContentScale);
             var selected = size == 256 ? primary : sources.Where(source => source.Span >= target)
                 .OrderBy(source => source.Span).FirstOrDefault() ?? sources.MaxBy(source => source.Span)!;
-            return RenderFrame(selected.Pixels, style, color, size);
+            return style.Backdrop == BackdropStyle.MacOS
+                ? MacIconMaterial.Render(selected.Pixels, primary.Appearance, style, size)
+                : RenderFrame(selected.Pixels, style, color, size);
         }).ToArray();
         var notes = new List<string>();
         if (256 * style.ContentScale > primary.Span * 1.05)
             notes.Add("原图可见图案分辨率较低，放大后无法补回细节。");
         if (style.ContentScale < 0.65)
             notes.Add("图案占比较小，小尺寸下的细节可能更难辨认。");
-        if (style.Backdrop != BackdropStyle.None && style.ContentScale >= 0.8)
+        if (style.Backdrop is BackdropStyle.Gradient or BackdropStyle.Solid && style.ContentScale >= 0.8)
             notes.Add("底板会裁切超出轮廓的图案边缘，可降低图案比例保留更多内容。");
         if (skipped)
             notes.Add("部分原始尺寸无法读取或超出处理上限，已使用可用图标生成。");
@@ -86,10 +89,10 @@ public sealed class IconRenderer : IIconRenderer
         var visible = FindVisibleBounds(bitmap);
         var bounds = crop ? visible : new SKRectI(0, 0, bitmap.Width, bitmap.Height);
         var source = new PixelResampler(bitmap, bounds);
-        return new(source, Math.Max(bounds.Width, bounds.Height), info.Width, info.Height);
+        return new(source, Math.Max(bounds.Width, bounds.Height), info.Width, info.Height, MacIconMaterial.Analyze(bitmap, visible));
     }
 
-    private sealed record PreparedSource(PixelResampler Pixels, int Span, int Width, int Height)
+    private sealed record PreparedSource(PixelResampler Pixels, int Span, int Width, int Height, MacIconMaterial.SourceAppearance Appearance)
     {
         internal long PixelCount => (long)Width * Height;
     }

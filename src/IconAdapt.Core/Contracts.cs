@@ -52,7 +52,7 @@ public interface IShortcutService : IDisposable
     Task<OperationBatch> RestoreAsync(string batchId, CancellationToken cancellationToken = default);
 }
 
-public enum BackdropStyle { Gradient, Solid, None }
+public enum BackdropStyle { Gradient, Solid, None, MacOS }
 
 public sealed record IconStyle
 {

@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
@@ -58,13 +60,15 @@ internal static class LayoutChecks
             window.Show();
             Settle(window);
             VerifyChrome(window);
-            VerifyControls(window);
+            VerifyControls(window, vm);
+            VerifySwitch(window, vm);
             VerifyIdentity(window);
             vm.FocusedItem = vm.Items[4];
             vm.PreviewSizeCommand.Execute("48");
             Settle(window);
             VerifyWorkspace(window, new Size(1220, 800));
             Capture(window, Path.Combine(output, "workspace-default.png"));
+            VerifySelectionIndependence(window, vm, output);
             vm.FocusedItem = vm.Items[0];
             foreach (var size in new[] { new Size(960, 680), new Size(1046, 794), new Size(1280, 820) })
             {
@@ -81,6 +85,18 @@ internal static class LayoutChecks
                 Settle(window);
                 VerifyWorkspace(window, size);
                 Capture(window, Path.Combine(output, $"details-{size.Width:0}x{size.Height:0}.png"));
+                if (size.Width == 960)
+                {
+                    vm.BackdropIndex = (int)BackdropStyle.Gradient;
+                    Complete(vm.WaitForIdleAsync());
+                    Settle(window);
+                    VerifyWorkspace(window, size);
+                    VisibleWithin(Named<TextBox>(window, "ColorInput"), (FrameworkElement)window.Content);
+                    Capture(window, Path.Combine(output, "manual-color-960x680.png"));
+                    vm.MacPresetCommand.Execute(null);
+                    Complete(vm.WaitForIdleAsync());
+                    Settle(window);
+                }
             }
             window.Width = 960;
             window.Height = 680;
@@ -129,7 +145,7 @@ internal static class LayoutChecks
         foreach (string name in new[] { "IconGallery", "Inspector", "PreviewPanel", "StyleControls", "ApplyButton" })
             VisibleWithin(Named<FrameworkElement>(window, name), root);
         var settings = Named<FrameworkElement>(window, "StyleControls");
-        foreach (var control in Descendants(settings).OfType<Control>().Where(x => x is ComboBox or Slider or TextBox or CheckBox))
+        foreach (var control in Descendants(settings).OfType<Control>().Where(x => x.IsVisible && (x is ComboBox or Slider or TextBox or CheckBox)))
             VisibleWithin(control, root);
         var gallery = Named<ListBox>(window, "IconGallery");
         var boxes = Enumerable.Range(0, gallery.Items.Count).Select(i => gallery.ItemContainerGenerator.ContainerFromIndex(i)).OfType<ListBoxItem>().ToArray();
@@ -155,7 +171,7 @@ internal static class LayoutChecks
     private static void VerifyChrome(MainWindow window)
     {
         var chrome = WindowChrome.GetWindowChrome(window);
-        Check(chrome != null && chrome.CaptionHeight >= 30 && chrome.CaptionHeight <= 50, "Custom chrome must preserve a Windows caption drag region.");
+        Check(chrome != null && chrome.CaptionHeight >= 30 && chrome.CaptionHeight <= 64, "Custom chrome must preserve a usable caption drag region.");
         Check(chrome!.ResizeBorderThickness.Left >= 4 && chrome.ResizeBorderThickness.Bottom >= 4, "Custom chrome must preserve a usable resize border.");
         var buttons = Descendants((FrameworkElement)window.Content).OfType<Button>().ToArray();
         foreach (string action in new[] { "最小化", "最大化", "关闭" })
@@ -168,22 +184,35 @@ internal static class LayoutChecks
             Check(WindowChrome.GetIsHitTestVisibleInChrome(button), "Caption navigation buttons must remain clickable.");
     }
 
-    private static void VerifyControls(MainWindow window)
+    private static void VerifyControls(MainWindow window, MainViewModel vm)
     {
         var combo = Named<ComboBox>(window, "BackdropSelector");
-        Check(combo.Items.Count == 3 && combo.Items.Cast<ComboBoxItem>().All(x => x.Content is string { Length: > 0 }), "Backdrop choices must retain their readable labels.");
+        Check(combo.Items.Count == 4 && combo.Items.Cast<ComboBoxItem>().All(x => x.Content is string { Length: > 0 }), "Backdrop choices must retain their readable labels, including the macOS style.");
         Check(combo.Template.FindName("PART_Popup", combo) is Popup { Child: not null }, "Backdrop combo must have an actual dropdown popup.");
-        Check(Descendants(combo).OfType<TextBlock>().Any(x => x.Text.Contains("渐变", StringComparison.Ordinal)), "Collapsed backdrop selector must display its current choice.");
+        string currentChoice = (string)((ComboBoxItem)combo.SelectedItem).Content;
+        Check(Descendants(combo).OfType<TextBlock>().Any(x => x.Text == currentChoice), "Collapsed backdrop selector must display its current choice.");
         foreach (string name in new[] { "ScaleSlider", "RadiusSlider" })
         {
             var slider = Named<Slider>(window, name);
             Check(slider.Template.FindName("PART_Track", slider) is Track { Thumb: not null }, $"{name} must retain its draggable track/thumb.");
         }
+        vm.BackdropIndex = (int)BackdropStyle.MacOS;
+        Complete(vm.WaitForIdleAsync());
+        Settle(window);
         var color = Named<TextBox>(window, "ColorInput");
+        Check(!color.IsVisible && Descendants(Named<FrameworkElement>(window, "StyleControls")).OfType<TextBlock>()
+            .Any(x => x.IsVisible && x.Text == "跟随应用配色"), "Automatic palette mode must explain its color choice and hide the manual hex input.");
+        vm.BackdropIndex = (int)BackdropStyle.Gradient;
+        Complete(vm.WaitForIdleAsync());
+        Settle(window);
+        VisibleWithin(color, (FrameworkElement)window.Content);
         var host = (ScrollViewer)color.Template.FindName("PART_ContentHost", color);
         var textSurface = Descendants(host).OfType<FrameworkElement>().First(x => x.GetType().Name == "TextBoxView");
         Check(textSurface.ActualHeight >= color.FontSize, "Color input must leave enough vertical space for its text, without duplicate padding.");
         VisibleWithin(textSurface, color);
+        vm.MacPresetCommand.Execute(null);
+        Complete(vm.WaitForIdleAsync());
+        Settle(window);
     }
 
     private static void VerifyIdentity(MainWindow window)
@@ -202,6 +231,48 @@ internal static class LayoutChecks
         var decoder = new IconBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
         foreach (int size in new[] { 16, 20, 24, 32, 48, 64, 128, 256 })
             Check(decoder.Frames.Any(x => x.PixelWidth == size && x.PixelHeight == size), $"Application icon must carry its own {size}px frame.");
+    }
+
+    private static void VerifySwitch(MainWindow window, MainViewModel vm)
+    {
+        var toggle = Named<CheckBox>(window, "CropCheckBox");
+        Check(toggle.Focusable && toggle.IsTabStop, "The crop switch must remain reachable by keyboard.");
+        Check(!string.IsNullOrWhiteSpace(AutomationProperties.GetName(toggle)) || toggle.Content is string { Length: > 0 },
+            "The crop switch must expose a readable accessible label.");
+        var track = toggle.Template.FindName("SwitchTrack", toggle) as FrameworkElement;
+        var knob = toggle.Template.FindName("SwitchKnob", toggle) as FrameworkElement;
+        Check(track != null && knob != null, "The switch must render both its track and thumb.");
+        VisibleWithin(track!, toggle);
+        VisibleWithin(knob!, toggle);
+        bool original = vm.CropTransparent;
+        var initial = Bounds(knob!, toggle);
+        var peer = UIElementAutomationPeer.CreatePeerForElement(toggle);
+        var provider = peer?.GetPattern(PatternInterface.Toggle) as IToggleProvider;
+        Check(provider != null, "The styled switch must preserve the accessible toggle pattern.");
+        provider!.Toggle();
+        Settle(window);
+        Check(vm.CropTransparent != original && toggle.IsChecked == vm.CropTransparent,
+            "Toggling through accessibility must update the actual crop setting.");
+        var changed = Bounds(knob!, toggle);
+        Check(Math.Abs(initial.Left - changed.Left) > 3, "The switch thumb must visibly distinguish on and off states.");
+        provider.Toggle();
+        Complete(vm.WaitForIdleAsync());
+        Settle(window);
+        Check(vm.CropTransparent == original, "The switch check must restore the fixture's original setting.");
+    }
+
+    private static void VerifySelectionIndependence(MainWindow window, MainViewModel vm, string output)
+    {
+        var gallery = Named<ListBox>(window, "IconGallery");
+        var focused = vm.FocusedItem!;
+        bool original = focused.IsSelected;
+        focused.IsSelected = false;
+        Settle(window);
+        Check(ReferenceEquals(gallery.SelectedItem, focused) && ReferenceEquals(vm.FocusedItem, focused),
+            "Unchecking a focused icon must keep its preview focus independent of batch selection.");
+        Capture(window, Path.Combine(output, "selection-focus-default.png"));
+        focused.IsSelected = original;
+        Settle(window);
     }
 
     private static void VerifySingleLineText(FrameworkElement section)
@@ -290,10 +361,10 @@ internal static class LayoutChecks
 
     private sealed class LayoutRenderer : IIconRenderer
     {
-        private readonly Dictionary<string, RenderResult> cache = [];
+        private readonly Dictionary<(string Png, IconStyle Style), RenderResult> cache = [];
         public RenderResult Render(byte[] png, IconStyle style)
         {
-            string key = Convert.ToBase64String(png);
+            var key = (Convert.ToBase64String(png), style);
             if (!cache.TryGetValue(key, out var value)) cache[key] = value = new IconRenderer().Render(png, style);
             return value;
         }

@@ -40,12 +40,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         CancelCommand = new(_ => { operationCancellation?.Cancel(); CancelCommand?.Refresh(); }, _ => IsBusy && operationCancellation?.IsCancellationRequested == false);
         WorkspaceCommand = new(_ => ShowHistory = false);
         HistoryCommand = new(_ => { ShowHistory = true; _ = RefreshHistorySafelyAsync(); }, _ => !IsBusy);
-        ColorCommand = new(value => { if (value is string hex) BackgroundColor = hex; }, _ => !IsBusy);
+        ColorCommand = new(value => { if (value is string hex) BackgroundColor = hex; }, _ => CanChooseColor);
         PreviewSizeCommand = new(value =>
         {
             if (int.TryParse(value?.ToString(), out var pixels) && pixels is 32 or 48 or 64 or 96) PreviewPixelSize = pixels;
         });
         ClarityPresetCommand = new(_ => { CropTransparent = true; ContentScale = 0.80; }, _ => !IsBusy);
+        MacPresetCommand = new(_ => { BackdropIndex = (int)BackdropStyle.MacOS; CropTransparent = true; ContentScale = 0.80; CornerRadius = 0.23; }, _ => !IsBusy);
     }
 
     public ObservableCollection<ShortcutItem> Items { get; } = [];
@@ -59,6 +60,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsEmpty => Items.Count == 0;
     public bool HasHistory => History.Count > 0;
     public bool CanEdit => !IsBusy;
+    public bool IsMacStyle => BackdropIndex == (int)BackdropStyle.MacOS;
+    public bool CanChooseColor => CanEdit && !IsMacStyle;
     public int SelectedCount => Items.Count(x => x.IsSelected);
     public int TotalCount => Items.Count;
     private int previewPixelSize = 48;
@@ -74,7 +77,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
     public string PreviewSizeLabel => $"{PreviewPixelSize}px · 实际尺寸";
     private bool isBusy;
-    public bool IsBusy { get => isBusy; private set { if (Set(ref isBusy, value)) { Changed(nameof(CanEdit)); Changed(nameof(CompactStatus)); RefreshCommands(); } } }
+    public bool IsBusy { get => isBusy; private set { if (Set(ref isBusy, value)) { Changed(nameof(CanEdit)); Changed(nameof(CanChooseColor)); Changed(nameof(CompactStatus)); RefreshCommands(); } } }
     private bool isRendering;
     public bool IsRendering { get => isRendering; private set { if (Set(ref isRendering, value)) { Changed(nameof(CompactStatus)); RefreshCommands(); } } }
     private string status = "准备扫描桌面快捷方式";
@@ -121,11 +124,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ShortcutItem? FocusedItem { get => focusedItem; set => Set(ref focusedItem, value); }
     private BatchViewModel? selectedBatch;
     public BatchViewModel? SelectedBatch { get => selectedBatch; set { if (Set(ref selectedBatch, value)) RefreshCommands(); } }
-    private int backdropIndex;
-    public int BackdropIndex { get => backdropIndex; set { if (Set(ref backdropIndex, value)) SchedulePreview(); } }
+    private int backdropIndex = (int)BackdropStyle.MacOS;
+    public int BackdropIndex { get => backdropIndex; set { if (Set(ref backdropIndex, value)) { Changed(nameof(IsMacStyle)); Changed(nameof(CanChooseColor)); ColorCommand?.Refresh(); SchedulePreview(); } } }
     private string backgroundColor = "#7772EE";
     public string BackgroundColor { get => backgroundColor; set { if (Set(ref backgroundColor, value)) SchedulePreview(); } }
-    private double contentScale = 0.68;
+    private double contentScale = 0.80;
     public double ContentScale { get => contentScale; set { if (Set(ref contentScale, value)) { Changed(nameof(ScaleLabel)); Changed(nameof(DetailLimitNotice)); SchedulePreview(); } } }
     public string ScaleLabel => $"{ContentScale:P0}";
     private double cornerRadius = 0.23;
@@ -151,6 +154,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand ColorCommand { get; }
     public RelayCommand PreviewSizeCommand { get; }
     public RelayCommand ClarityPresetCommand { get; }
+    public RelayCommand MacPresetCommand { get; }
 
     public async Task InitializeAsync()
     {
@@ -211,7 +215,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void SetSelection(bool value) { foreach (var item in Items) item.IsSelected = value; }
     private IconStyle CurrentStyle() => new()
     {
-        Backdrop = (BackdropStyle)Math.Clamp(BackdropIndex, 0, 2), BackgroundColor = BackgroundColor.Trim(),
+        Backdrop = (BackdropStyle)Math.Clamp(BackdropIndex, 0, 3), BackgroundColor = IsMacStyle ? "#F4F6FA" : BackgroundColor.Trim(),
         ContentScale = ContentScale, CornerRadius = CornerRadius, CropTransparent = CropTransparent
     };
 
@@ -363,7 +367,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void RefreshCommands()
     {
         ScanCommand?.Refresh(); ChooseFolderCommand?.Refresh(); DesktopCommand?.Refresh(); SelectAllCommand?.Refresh(); SelectNoneCommand?.Refresh();
-        ApplyCommand?.Refresh(); RestoreCommand?.Refresh(); CancelCommand?.Refresh(); HistoryCommand?.Refresh(); ColorCommand?.Refresh(); ClarityPresetCommand?.Refresh();
+        ApplyCommand?.Refresh(); RestoreCommand?.Refresh(); CancelCommand?.Refresh(); HistoryCommand?.Refresh(); ColorCommand?.Refresh(); ClarityPresetCommand?.Refresh(); MacPresetCommand?.Refresh();
     }
     private void LoadSettings()
     {
@@ -372,7 +376,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (!File.Exists(settingsPath)) return;
             var style = System.Text.Json.JsonSerializer.Deserialize<IconStyle>(File.ReadAllText(settingsPath));
             if (style == null) return;
-            backdropIndex = Math.Clamp((int)style.Backdrop, 0, 2); backgroundColor = style.BackgroundColor;
+            backdropIndex = Math.Clamp((int)style.Backdrop, 0, 3); backgroundColor = style.BackgroundColor;
             contentScale = Math.Clamp(style.ContentScale, .3, .9); cornerRadius = Math.Clamp(style.CornerRadius, 0, .5); cropTransparent = style.CropTransparent;
         }
         catch { notice = "上次风格设置无法读取，已使用默认风格；快捷方式备份不受影响。"; noticeNeedsAttention = true; }

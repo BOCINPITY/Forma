@@ -38,7 +38,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 
 ## 版本
 
-当前 `0.1.0-preview.5` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。产品名与应用程序集名为 Forma；源码命名空间、解决方案名和旧数据目录沿用 IconAdapt。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
+当前 `0.1.0-preview.6` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。产品名与应用程序集名为 Forma；源码命名空间、解决方案名和旧数据目录沿用 IconAdapt。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
 
 正式发布前仍需人工验证真实桌面更新、多 DPI、更多应用图标和文件权限场景，明确安装 / 卸载、代码签名、许可证和自动更新策略。没有正式发布授权时不创建版本标签。
 

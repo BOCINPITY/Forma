@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -24,6 +26,7 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         Loaded += OnLoaded;
         Closing += OnClosing;
+        SourceInitialized += (_, _) => TryEnableRoundedCorners();
         StateChanged += (_, _) =>
         {
             // WindowChrome preserves native resizing; keep content inside the maximized frame.
@@ -31,6 +34,21 @@ public partial class MainWindow : Window
             MaximizeButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
         };
     }
+
+    private void TryEnableRoundedCorners()
+    {
+        try
+        {
+            // Windows 11 owns the real outer corners; older Windows versions simply ignore this hint.
+            int preference = 2;
+            _ = DwmSetWindowAttribute(new WindowInteropHelper(this).Handle, 33, ref preference, sizeof(int));
+        }
+        catch (DllNotFoundException) { }
+        catch (EntryPointNotFoundException) { }
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(nint window, int attribute, ref int value, int size);
 
     private void MinimizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
     private void ToggleMaximizeWindow(object sender, RoutedEventArgs e)
