@@ -44,6 +44,11 @@ public sealed class ShortcutItem : ObservableObject
         HasSmallSource ? "原图较小，放大无法补回细节。建议先以 32 或 48px 检查效果。" : "";
     public bool HasRenderNotes => Rendered?.Notes.Count > 0;
     public string RenderNotes => Rendered == null ? "" : string.Join("\n", Rendered.Notes.Distinct());
+    // Quality limitations are informational; successful and ready items must not look like errors.
+    public string QualitySummary => HasSmallSource ? "原图清晰度有限，适合小尺寸" :
+        !string.IsNullOrWhiteSpace(Info.QualityWarning) ? "原图来源有提示，可展开查看" :
+        Rendered?.Notes.Any(x => x.Contains("裁切", StringComparison.Ordinal)) == true ? "图案边缘可能被裁切" :
+        HasRenderNotes ? "有画质提示，可展开查看" : "";
     public RenderResult? Rendered { get; private set; }
 
     public void SetRendered(RenderResult? result, IReadOnlyDictionary<int, BitmapSource>? frames = null)
@@ -53,6 +58,7 @@ public sealed class ShortcutItem : ObservableObject
         Changed(nameof(Preview)); Changed(nameof(DisplayImage)); Changed(nameof(HasExactPreviewFrame)); Changed(nameof(PreviewHint));
         Changed(nameof(SourceQualityNotice));
         Changed(nameof(HasRenderNotes)); Changed(nameof(RenderNotes));
+        Changed(nameof(QualitySummary));
     }
     public void SetPreviewSize(int pixels)
     {
@@ -68,10 +74,32 @@ public sealed class ShortcutItem : ObservableObject
     private bool selected;
     public bool IsSelected { get => selected; set => Set(ref selected, value && CanSelect); }
     private string status;
-    public string Status { get => status; set { if (Set(ref status, value)) Changed(nameof(Diagnostic)); } }
+    public string Status { get => status; set { if (Set(ref status, value)) RefreshIssue(); } }
     private string detail;
-    public string Detail { get => detail; set { if (Set(ref detail, value)) Changed(nameof(Diagnostic)); } }
+    public string Detail { get => detail; set { if (Set(ref detail, value)) RefreshIssue(); } }
     public string Diagnostic => string.IsNullOrWhiteSpace(Detail) ? "" : OperationFeedback.ItemAdvice(Detail, Path);
+    public bool HasIssue => !CanSelect || Status is "预览失败" or "应用失败" or "恢复失败" or "待核对 / 可恢复" or "文件已变化";
+    public string IssueSummary
+    {
+        get
+        {
+            if (!HasIssue) return "";
+            if (OperationFeedback.IsAccessDenied(Detail)) return "权限不足，请检查访问权限";
+            if (OperationFeedback.IsProtectionAbort(Detail)) return "属性校验未通过，请先核对";
+            if (Status == "预览失败") return "预览生成失败，请查看详情";
+            if (Status == "待核对 / 可恢复") return "状态待核对，可从记录恢复";
+            if (Status == "文件已变化") return "文件已变化，当前内容已保留";
+            if (Status is "应用失败" or "恢复失败") return "操作未完成，请查看详情";
+            if (Detail.Contains("目标", StringComparison.Ordinal) &&
+                (Detail.Contains("不存在", StringComparison.Ordinal) || Detail.Contains("不可访问", StringComparison.Ordinal)))
+                return "目标程序暂时不可用";
+            return "暂时无法适配此快捷方式";
+        }
+    }
+    private void RefreshIssue()
+    {
+        Changed(nameof(Diagnostic)); Changed(nameof(HasIssue)); Changed(nameof(IssueSummary));
+    }
 
     public static BitmapSource? Decode(byte[]? png)
     {
@@ -93,7 +121,7 @@ public sealed class BatchViewModel(OperationBatch batch)
     public string Id => Batch.Id;
     public string Title => Batch.CreatedAt.ToLocalTime().ToString("MM月dd日  HH:mm:ss");
     public string Summary => OperationFeedback.BatchSummary(Batch);
-    public string SummaryForeground => Batch.Items.Any(x => x.State is "failed" or "pending" or "restoring" or "conflict") ? "#B46C5A" : "#7A8194";
+    public string SummaryForeground => Batch.Items.Any(x => x.State is "failed" or "restore_failed" or "pending" or "restoring" or "conflict") ? "#A75A3D" : "#747B82";
     public IEnumerable<BatchItemViewModel> Items => Batch.Items.Select(x => new BatchItemViewModel(x));
     public bool CanRestore => Batch.Items.Any(x => x.State is "applied" or "pending" or "restoring" or "conflict");
 }

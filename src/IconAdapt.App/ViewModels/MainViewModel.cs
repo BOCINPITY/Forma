@@ -32,7 +32,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         LoadSettings();
         ScanCommand = new(_ => _ = ScanAsync(), _ => !IsBusy);
         ChooseFolderCommand = new(_ => ChooseFolder(), _ => !IsBusy);
-        DesktopCommand = new(_ => { this.directory = null; Changed(nameof(SourceLabel)); _ = ScanAsync(); }, _ => !IsBusy);
+        DesktopCommand = new(_ => { this.directory = null; SourceChanged(); _ = ScanAsync(); }, _ => !IsBusy);
         SelectAllCommand = new(_ => SetSelection(true), _ => !IsBusy && Items.Count > 0);
         SelectNoneCommand = new(_ => SetSelection(false), _ => !IsBusy && Items.Count > 0);
         ApplyCommand = new(_ => _ = ApplyAsync(), _ => !IsBusy && !IsRendering && StyleError.Length == 0 && Items.Any(x => x.IsSelected) && Items.Where(x => x.IsSelected).All(x => x.Rendered != null));
@@ -52,11 +52,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<BatchViewModel> History { get; } = [];
     public string Version => typeof(MainViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "开发版";
     public string SourceLabel => directory == null ? "当前用户桌面 + 公共桌面" : directory;
+    public string SourceShortLabel => directory is null ? "桌面快捷方式" :
+        System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(directory)) is { Length: > 0 } name ? name : directory;
+    public string SourceTooltip => SourceLabel;
     public string SelectionLabel => $"已选择 {Items.Count(x => x.IsSelected)} / {Items.Count(x => x.CanSelect)} 项";
     public bool IsEmpty => Items.Count == 0;
     public bool HasHistory => History.Count > 0;
     public bool CanEdit => !IsBusy;
     public int SelectedCount => Items.Count(x => x.IsSelected);
+    public int TotalCount => Items.Count;
     private int previewPixelSize = 48;
     public int PreviewPixelSize
     {
@@ -70,15 +74,48 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
     public string PreviewSizeLabel => $"{PreviewPixelSize}px · 实际尺寸";
     private bool isBusy;
-    public bool IsBusy { get => isBusy; private set { if (Set(ref isBusy, value)) { Changed(nameof(CanEdit)); RefreshCommands(); } } }
+    public bool IsBusy { get => isBusy; private set { if (Set(ref isBusy, value)) { Changed(nameof(CanEdit)); Changed(nameof(CompactStatus)); RefreshCommands(); } } }
     private bool isRendering;
-    public bool IsRendering { get => isRendering; private set { if (Set(ref isRendering, value)) RefreshCommands(); } }
+    public bool IsRendering { get => isRendering; private set { if (Set(ref isRendering, value)) { Changed(nameof(CompactStatus)); RefreshCommands(); } } }
     private string status = "准备扫描桌面快捷方式";
-    public string Status { get => status; private set => Set(ref status, value); }
+    public string Status { get => status; private set { if (Set(ref status, value)) { Changed(nameof(CompactStatus)); Changed(nameof(StatusDetail)); Changed(nameof(NoticeSummary)); } } }
+    public string StatusDetail => Status;
+    public string CompactStatus
+    {
+        get
+        {
+            if (IsBusy)
+                return Status.Contains("读取", StringComparison.Ordinal) ? "正在读取记录…" :
+                    Status.Contains("扫描", StringComparison.Ordinal) ? "正在扫描图标…" :
+                    Status.Contains("恢复", StringComparison.Ordinal) ? "正在恢复图标…" : "正在应用图标…";
+            if (IsRendering) return "正在生成预览…";
+            if (Status.StartsWith("扫描完成", StringComparison.Ordinal)) return $"已载入 {TotalCount} 个图标";
+            if (Status.StartsWith("应用结果", StringComparison.Ordinal))
+            {
+                var outcomes = Status.Split('·').Skip(1).Select(x => x.Trim()).Where(x => !x.EndsWith(" 0", StringComparison.Ordinal)).ToArray();
+                return outcomes.Length > 0 ? string.Join(" · ", outcomes) : "应用结束";
+            }
+            return Status == "准备扫描桌面快捷方式" ? "准备就绪" : Status;
+        }
+    }
     private string notice = "预览只在本地生成；点击应用后才会修改快捷方式。";
-    public string Notice { get => notice; private set => Set(ref notice, value); }
+    private bool noticeNeedsAttention;
+    public string Notice { get => notice; private set { if (Set(ref notice, value)) { Changed(nameof(NoticeSummary)); Changed(nameof(NoticeDetail)); Changed(nameof(NoticeHasIssue)); } } }
+    public string NoticeDetail => Notice;
+    // Severity comes from actual outcomes, not words such as "失败" in explanatory guidance.
+    public bool NoticeHasIssue => noticeNeedsAttention || ShowWorkspace && Items.Any(x => x.HasIssue);
+    public string NoticeSummary => NoticeHasIssue ? "有项目或提示需要核对，展开查看详情" :
+        Status == "操作已停止" || Notice.Contains("已取消", StringComparison.Ordinal) ? "操作已停止，可在恢复记录中核对" :
+        Status.StartsWith("恢复结束", StringComparison.Ordinal) ? "恢复结果已保存，可查看批次详情" :
+        "本地预览 · 应用时自动备份";
+    private void SetNotice(string message, bool needsAttention = false)
+    {
+        noticeNeedsAttention = needsAttention;
+        Notice = message;
+        Changed(nameof(NoticeHasIssue)); Changed(nameof(NoticeSummary));
+    }
     private bool showHistory;
-    public bool ShowHistory { get => showHistory; set { if (Set(ref showHistory, value)) Changed(nameof(ShowWorkspace)); } }
+    public bool ShowHistory { get => showHistory; set { if (Set(ref showHistory, value)) { Changed(nameof(ShowWorkspace)); Changed(nameof(NoticeHasIssue)); Changed(nameof(NoticeSummary)); } } }
     public bool ShowWorkspace => !ShowHistory;
     private ShortcutItem? focusedItem;
     public ShortcutItem? FocusedItem { get => focusedItem; set => Set(ref focusedItem, value); }
@@ -127,7 +164,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var dialog = new OpenFolderDialog { Title = "选择包含 .lnk 快捷方式的文件夹", Multiselect = false };
         if (dialog.ShowDialog() != true) return;
         directory = dialog.FolderName;
-        Changed(nameof(SourceLabel));
+        SourceChanged();
         _ = ScanAsync();
     }
 
@@ -152,7 +189,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             FocusedItem = Items.FirstOrDefault(x => x.CanSelect) ?? Items.FirstOrDefault();
             Changed(nameof(IsEmpty));
             UpdateSelection();
-            Notice = result.Warnings.Count > 0 ? string.Join("\n", result.Warnings) : "选中卡片上的复选框参与批量处理；点击卡片查看前后对比。";
+            SetNotice(result.Warnings.Count > 0 ? string.Join("\n", result.Warnings) : "选中卡片上的复选框参与批量处理；点击卡片查看前后对比。", result.Warnings.Count > 0);
             Status = $"扫描完成 · {Items.Count} 个快捷方式，{Items.Count(x => !x.CanSelect)} 个已跳过";
             await RefreshHistoryAsync(token);
         });
@@ -163,8 +200,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void ItemChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName == nameof(ShortcutItem.IsSelected)) UpdateSelection();
+        if (args.PropertyName == nameof(ShortcutItem.HasIssue)) { Changed(nameof(NoticeHasIssue)); Changed(nameof(NoticeSummary)); }
     }
-    private void UpdateSelection() { Changed(nameof(SelectionLabel)); Changed(nameof(SelectedCount)); RefreshCommands(); }
+    private void UpdateSelection()
+    {
+        Changed(nameof(SelectionLabel)); Changed(nameof(SelectedCount)); Changed(nameof(TotalCount));
+        Changed(nameof(CompactStatus)); Changed(nameof(NoticeHasIssue)); Changed(nameof(NoticeSummary)); RefreshCommands();
+    }
+    private void SourceChanged() { Changed(nameof(SourceLabel)); Changed(nameof(SourceShortLabel)); Changed(nameof(SourceTooltip)); }
     private void SetSelection(bool value) { foreach (var item in Items) item.IsSelected = value; }
     private IconStyle CurrentStyle() => new()
     {
@@ -227,7 +270,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (!ApplyCommand.CanExecute(null)) return;
         var selection = Items.Where(x => x.IsSelected).ToArray();
-        if (selection.Any(x => x.Rendered == null)) { Notice = "选中的项目包含预览失败项，请先取消选择或调整风格。"; return; }
+        if (selection.Any(x => x.Rendered == null)) { SetNotice("选中的项目包含预览失败项，请先取消选择或调整风格。", true); return; }
         if (MessageBox.Show($"将修改 {selection.Length} 个快捷方式的图标。\n\n程序会先保存原始快捷方式备份和操作记录。应用后可在“恢复记录”中恢复。\n\n生成的图标会保留在本机，请勿手动删除数据目录。", "应用图标适配", MessageBoxButton.OKCancel, MessageBoxImage.Information) != MessageBoxResult.OK) return;
         var changes = selection.Select(x => new IconChange(x.Path, x.Info.FileHash, x.Rendered!.IconFile)).ToArray();
         await RunOperationAsync($"正在备份并应用 {changes.Length} 项…", async token =>
@@ -242,7 +285,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 if (result.AppliedHash != null) item.Info = item.Info with { FileHash = result.AppliedHash };
             }
             Status = OperationFeedback.ApplyStatus(batch);
-            Notice = OperationFeedback.ApplyNotice(batch);
+            SetNotice(OperationFeedback.ApplyNotice(batch), BatchNeedsAttention(batch));
             await RefreshHistoryAsync(CancellationToken.None);
             SelectedBatch = History.FirstOrDefault(x => x.Id == batch.Id) ?? SelectedBatch;
         });
@@ -256,17 +299,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             var result = await service.RestoreAsync(batch.Id, token);
             Status = $"恢复结束 · {result.Items.Count(x => x.State == "restored")} 项已恢复 / {result.Items.Count} 项";
-            Notice = "请查看本批次各项结果。恢复失败或文件冲突时，备份及操作记录仍保留。返回图标工作台后可重新扫描。";
+            SetNotice("请查看本批次各项结果。恢复失败或文件冲突时，备份及操作记录仍保留。返回图标工作台后可重新扫描。", BatchNeedsAttention(result));
             await RefreshHistoryAsync(CancellationToken.None);
         });
         // Refresh file fingerprints and original sources after restoration before another apply.
         var restoreStatus = Status;
         var restoreNotice = Notice;
+        var restoreNeedsAttention = noticeNeedsAttention;
         await ScanAsync();
         var scanFailed = Status == "操作未能完成";
         var scanNotice = Notice;
         Status = restoreStatus;
-        Notice = restoreNotice + (scanFailed ? $"\n重新扫描未完成：{scanNotice}" : "");
+        SetNotice(restoreNotice + (scanFailed ? $"\n重新扫描未完成：{scanNotice}" : ""), restoreNeedsAttention || scanFailed);
     }
 
     private async Task RefreshHistorySafelyAsync()
@@ -292,15 +336,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IsBusy = true;
         Status = message;
         try { await action(operationCancellation.Token); }
-        catch (OperationCanceledException) { Status = "操作已停止"; Notice = "已完成的操作会保留。涉及修改时，请在恢复记录中查看实际结果。"; await RecoverHistoryAsync(); }
-        catch (Exception ex) { Status = "操作未能完成"; Notice = FriendlyError(ex); await RecoverHistoryAsync(); }
+        catch (OperationCanceledException) { Status = "操作已停止"; SetNotice("已完成的操作会保留。涉及修改时，请在恢复记录中查看实际结果。"); await RecoverHistoryAsync(); }
+        catch (Exception ex) { Status = "操作未能完成"; SetNotice(FriendlyError(ex), true); await RecoverHistoryAsync(); }
         finally { IsBusy = false; operationFinished.TrySetResult(); }
     }
     private async Task RecoverHistoryAsync()
     {
         try { await RefreshHistoryAsync(CancellationToken.None); }
-        catch (Exception ex) { Notice += $"\n恢复记录暂时无法读取：{ex.Message}"; }
+        catch (Exception ex) { SetNotice(Notice + $"\n恢复记录暂时无法读取：{ex.Message}", true); }
     }
+    private static bool BatchNeedsAttention(OperationBatch batch) => batch.Items.Any(x =>
+        x.State is "failed" or "restore_failed" or "pending" or "restoring" or "conflict" or "queued");
     private static string FriendlyError(Exception ex) => ex switch
     {
         UnauthorizedAccessException => $"没有权限访问该位置，请选择可读写的文件夹或跳过受保护的快捷方式。\n{ex.Message}",
@@ -329,7 +375,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             backdropIndex = Math.Clamp((int)style.Backdrop, 0, 2); backgroundColor = style.BackgroundColor;
             contentScale = Math.Clamp(style.ContentScale, .3, .9); cornerRadius = Math.Clamp(style.CornerRadius, 0, .5); cropTransparent = style.CropTransparent;
         }
-        catch { notice = "上次风格设置无法读取，已使用默认风格；快捷方式备份不受影响。"; }
+        catch { notice = "上次风格设置无法读取，已使用默认风格；快捷方式备份不受影响。"; noticeNeedsAttention = true; }
     }
     private void SaveSettings(IconStyle style)
     {
@@ -340,7 +386,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             File.WriteAllText(temp, System.Text.Json.JsonSerializer.Serialize(style, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
             File.Move(temp, settingsPath, true);
         }
-        catch (Exception ex) { Notice = $"预览已生成，但风格设置无法保存：{ex.Message}"; }
+        catch (Exception ex) { SetNotice($"预览已生成，但风格设置无法保存：{ex.Message}", true); }
     }
     public void Dispose()
     {

@@ -65,7 +65,30 @@ internal static class Program
         vm.ClarityPresetCommand.Execute(null);
         vm.WaitForIdleAsync().GetAwaiter().GetResult();
         Check(vm.CropTransparent && vm.ContentScale == .8, "Only the explicit clarity action should change padding and content size.");
+        var item = vm.FocusedItem!;
+        foreach (var state in new[] { "可应用", "已应用", "已恢复", "已取消" })
+        {
+            item.Status = state;
+            Check(!item.HasIssue && item.IssueSummary.Length == 0, "Successful outcomes and small source warnings must not appear as errors.");
+        }
+        var notifications = new List<string?>();
+        vm.PropertyChanged += (_, e) => notifications.Add(e.PropertyName);
+        foreach (var state in new[] { "预览失败", "应用失败", "恢复失败", "待核对 / 可恢复", "文件已变化" })
+        {
+            item.Status = state;
+            Check(item.HasIssue && item.IssueSummary.Length > 0 && vm.NoticeHasIssue,
+                "Failed and uncertain outcomes must keep visible, actionable summaries.");
+        }
+        item.Detail = "Access is denied";
+        Check(item.IssueSummary.Contains("权限"), "Access failures must retain permission guidance.");
+        item.Status = "已恢复";
+        item.Detail = "恢复失败或文件冲突时，备份及操作记录仍保留。";
+        Check(!item.HasIssue && !vm.NoticeHasIssue && item.Diagnostic.Length > 0,
+            "Conditional recovery guidance must stay available without making a successful item look like an error.");
+        Check(notifications.Contains(nameof(vm.NoticeHasIssue)) && notifications.Contains(nameof(vm.NoticeSummary)),
+            "Changing an item's outcome must update the global notice bindings.");
         Console.WriteLine("PASS: WPF exported-pixel equality, native-source size, frame switching, source propagation and explicit clarity preset.");
+        LayoutChecks.Run();
     }
 
     private static byte[] Draw(NativePixelImage control, int size)

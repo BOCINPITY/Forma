@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-当前版本：`0.1.0-preview.3`。本轮重做小尺寸图标质量：保留原生图标帧、改善缩小采样，增加实际像素预览和“清晰优先”预设。
+当前版本：`0.1.0-preview.4`。本轮重做桌面界面：紧凑图标网格、顶部导航、固定预览与设置区，以及始终可见的底部操作栏。保留原生图标帧、实际像素预览和“清晰优先”预设。
 
 已实现桌面 / 文件夹扫描、图标网格选择、实时前后对比、渐变 / 纯色 / 透明底板、大小与圆角调整、多尺寸 ICO、批量应用、持久备份、历史记录和按批次恢复。
 
@@ -12,15 +12,15 @@ Release 构建及图像、Windows COM、跨模块集成验证已通过；WPF 界
 
 ## 直接使用
 
-构建好的便携版位于 `artifacts\IconAdapt-0.1.0-preview.3-win-x64\`，完整保留该文件夹，双击 `IconAdapt.exe` 启动。自包含 Windows x64 包无需另装 .NET SDK。按版本分别输出，避免覆盖仍在运行的旧程序。
+构建好的便携版位于 `artifacts\IconAdapt-0.1.0-preview.4-win-x64\`，完整保留该文件夹，双击 `IconAdapt.exe` 启动。自包含 Windows x64 包无需另装 .NET SDK。按版本分别输出，避免覆盖仍在运行的旧程序。
 
 针对缩放模糊：先点击“清晰优先”，再比较 32 / 48px 的实际输出。该按钮会去除透明留白并把图案占比设为 80%，不会在升级时静默改动原有设置；原图确实较小时会提示限制。详见 [清晰度设计与验收](docs/icon-quality.md)。
 
-先预览，再应用；恢复入口在左侧“恢复记录”。**应用后请保留 `%LOCALAPPDATA%\IconAdapt\` 数据目录**，快捷方式会持续引用这里生成的图标。详见 [使用说明](docs/user-guide.md)。
+先预览，再应用；恢复入口在顶部“恢复记录”。**应用后请保留 `%LOCALAPPDATA%\IconAdapt\` 数据目录**，快捷方式会持续引用这里生成的图标。详见 [使用说明](docs/user-guide.md)。
 
 当前没有安装程序、自动更新和代码签名，不是正式发布版。
 
-![使用自建快捷方式的实际界面](docs/images/workspace.png)
+![使用合成图标与测试状态的实际界面](docs/images/workspace.png)
 
 ## 支持范围
 
@@ -70,6 +70,7 @@ licenses/                    上游许可原文
 - [使用说明](docs/user-guide.md)
 - [应用失败排查与解决方案](docs/troubleshooting-apply.md)
 - [清晰度设计与验收](docs/icon-quality.md)
+- [界面设计](docs/ui-design.md)
 - [产品范围](docs/product.md)
 - [技术架构](docs/architecture.md)
 - [技术选型记录](docs/adr/0001-windows-native-stack.md)

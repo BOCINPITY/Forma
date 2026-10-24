@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Windows.Shell;
 using IconAdapt.App.ViewModels;
 
 namespace IconAdapt.App;
@@ -23,7 +24,24 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         Loaded += OnLoaded;
         Closing += OnClosing;
+        StateChanged += (_, _) =>
+        {
+            // WindowChrome preserves native resizing; keep content inside the maximized frame.
+            OuterFrame.Padding = WindowState == WindowState.Maximized ? new Thickness(7) : new Thickness(0);
+            MaximizeButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        };
     }
+
+    private void MinimizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+    private void ToggleMaximizeWindow(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this);
+        else SystemCommands.MaximizeWindow(this);
+    }
+    private void CloseWindow(object sender, RoutedEventArgs e) => Close();
+    private void ShowNoticeDetails(object sender, RoutedEventArgs e) =>
+        MessageBox.Show(this, viewModel.StatusDetail + "\n\n" + viewModel.NoticeDetail,
+            "操作详情", MessageBoxButton.OK, MessageBoxImage.Information);
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
