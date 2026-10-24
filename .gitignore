@@ -1,0 +1,30 @@
+# .NET output
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+*.binlog
+
+# IDE and local state
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.sln.docstates
+
+# Generated app data and backups
+.local/
+*.log
+*.tmp
+
+# Local credentials
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+
+# OS files
+Thumbs.db
+Desktop.ini

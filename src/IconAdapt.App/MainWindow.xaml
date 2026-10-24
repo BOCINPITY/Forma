@@ -1,0 +1,33 @@
+<Window x:Class="IconAdapt.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="IconAdapt" Width="1080" Height="720"
+        MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        Background="#F5F6FA" FontFamily="Microsoft YaHei UI">
+    <Grid Margin="40">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="IconAdapt" FontSize="32" FontWeight="SemiBold" Foreground="#222638" />
+            <TextBlock Text="让桌面图标协调有序" Margin="0,10,0,0" FontSize="16" Foreground="#626B80" />
+        </StackPanel>
+        <Border Grid.Row="1" Background="White" CornerRadius="20" Padding="32" Margin="0,32,0,24">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="520">
+                <TextBlock Text="从桌面图标开始" FontSize="24" FontWeight="SemiBold"
+                           Foreground="#222638" HorizontalAlignment="Center" />
+                <TextBlock Text="后续将在这里扫描快捷方式、预览适配效果，并批量应用。"
+                           TextWrapping="Wrap" TextAlignment="Center"
+                           FontSize="15" Foreground="#626B80" Margin="0,16,0,0" />
+                <Border Background="#F1F3F9" CornerRadius="10" Padding="16" Margin="0,24,0,0">
+                    <TextBlock Text="当前是项目骨架，桌面扫描与图标修改功能尚未实现。"
+                               TextWrapping="Wrap" TextAlignment="Center" Foreground="#626B80" />
+                </Border>
+            </StackPanel>
+        </Border>
+        <TextBlock Grid.Row="2" Text="0.1.0-dev · 开发阶段" Foreground="#626B80" FontSize="12" />
+    </Grid>
+</Window>
