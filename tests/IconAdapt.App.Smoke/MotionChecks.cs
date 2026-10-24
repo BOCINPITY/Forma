@@ -111,6 +111,9 @@ internal static class MotionChecks
             }
             else Console.WriteLine("System animations are disabled: temporal intermediate-frame checks were skipped; immediate-target checks still run.");
 
+            // The reduced-motion fixture must have the same content height even
+            // when the system preference skipped the animated branch above.
+            content.Height = 112;
             Motion.SetIsEnabled(window, false);
             Check(!Motion.CanAnimate(opacity), "A disabled motion setting must inherit from the test window.");
             Check(!opacity.HasAnimatedProperties && !((TranslateTransform)offset.RenderTransform).HasAnimatedProperties && !((RotateTransform)angle.RenderTransform).HasAnimatedProperties && !reveal.HasAnimatedProperties,
