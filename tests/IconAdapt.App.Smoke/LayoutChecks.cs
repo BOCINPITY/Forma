@@ -36,13 +36,7 @@ internal static class LayoutChecks
         vm.Items[2].Detail = "测试操作中断，备份及记录已保留。";
         vm.FocusedItem = vm.Items[0];
 
-        // Load the actual application's resources without its OnStartup (which scans the real desktop).
-        if (Application.Current == null)
-        {
-            var app = new IconAdapt.App.App();
-            app.InitializeComponent();
-            app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        }
+        UiTestApplication.EnsureResources();
         var window = new MainWindow(vm, null)
         {
             WindowStartupLocation = WindowStartupLocation.Manual,
@@ -51,6 +45,9 @@ internal static class LayoutChecks
             ShowActivated = false,
             ShowInTaskbar = false
         };
+        // Geometry/pixel regressions use settled controls. MotionChecks exercises
+        // the actual animated templates separately, including interrupted changes.
+        Motion.SetIsEnabled(window, false);
         // A normal Application.Run installs this context. This console host pumps the
         // dispatcher itself, so install it explicitly before any bound async commands.
         var previousContext = SynchronizationContext.Current;
@@ -59,6 +56,7 @@ internal static class LayoutChecks
         {
             window.Show();
             Settle(window);
+            UiTestApplication.VerifyIsolation(window);
             VerifyChrome(window);
             VerifyControls(window, vm);
             VerifySwitch(window, vm);

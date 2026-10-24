@@ -10,12 +10,21 @@ namespace IconAdapt.App;
 
 public partial class App : Application
 {
+    private readonly bool launchMainWindow;
     private IShortcutService? service;
     private MainViewModel? viewModel;
     private string? smokeOutput;
 
+    public App() : this(launchMainWindow: true) { }
+
+    // Tests load the real BAML resources, but must not parse the test runner's
+    // arguments or create a service for the user's desktop when WPF queues startup.
+    internal App(bool launchMainWindow) => this.launchMainWindow = launchMainWindow;
+    internal bool UiTestStartupIntercepted { get; private set; }
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (!launchMainWindow) { UiTestStartupIntercepted = true; return; }
         base.OnStartup(e);
         DispatcherUnhandledException += OnDispatcherException;
         try

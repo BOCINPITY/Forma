@@ -9,7 +9,22 @@
     <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="54" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/></shell:WindowChrome.WindowChrome>
     <Window.Resources>
         <Style x:Key="OptionalText" TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger><Trigger Property="Text" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style>
-        <Style x:Key="CaptionButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Width" Value="44"/><Setter Property="Height" Value="42"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="0"/><Setter Property="FontFamily" Value="Segoe MDL2 Assets"/><Setter Property="FontSize" Value="10"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Surface" Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#E7E9EC"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="#D7DAE0"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Surface" Property="Background" Value="#E2EAF5"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
+        <Style x:Key="CaptionButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="44"/><Setter Property="Height" Value="42"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="0"/><Setter Property="FontFamily" Value="Segoe MDL2 Assets"/><Setter Property="FontSize" Value="10"/>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border x:Name="Surface" Background="{TemplateBinding Background}"><Grid>
+                    <Border x:Name="CaptionHover" Background="#E7E9EC" controls:Motion.Opacity="0"/>
+                    <Border x:Name="CaptionPressed" Background="#D7DAE0" controls:Motion.Opacity="0"/>
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Grid></Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="CaptionHover" Property="controls:Motion.Opacity" Value="1"/></Trigger>
+                    <Trigger Property="IsPressed" Value="True"><Setter TargetName="CaptionPressed" Property="controls:Motion.Opacity" Value="1"/></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Surface" Property="controls:Motion.Opacity" Value="0.38"/></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Surface" Property="Background" Value="#E2EAF5"/></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
         <Style x:Key="SizeButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Foreground" Value="{StaticResource Muted}"/><Setter Property="Padding" Value="0,3"/><Setter Property="MinHeight" Value="25"/><Setter Property="FontSize" Value="{StaticResource CaptionSize}"/><Setter Property="Margin" Value="2"/></Style>
         <Style x:Key="Swatch" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Width" Value="20"/><Setter Property="Height" Value="22"/><Setter Property="MinHeight" Value="0"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,4,0"/><Setter Property="BorderThickness" Value="0"/></Style>
     </Window.Resources>
@@ -53,7 +68,18 @@
                     <Grid Grid.Row="2">
                         <ListBox x:Name="IconGallery" ItemsSource="{Binding Items}" SelectedItem="{Binding FocusedItem}" BorderThickness="0" Padding="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" IsEnabled="{Binding CanEdit}">
                             <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
-                            <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,4,6"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="Tile" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="12"><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Tile" Property="Background" Value="#F0F5FE"/></Trigger><Trigger Property="IsSelected" Value="True"><Setter TargetName="Tile" Property="Background" Value="#EAF2FF"/><Setter TargetName="Tile" Property="BorderBrush" Value="#B5D4FF"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Tile" Property="BorderBrush" Value="#0A84FF"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></ListBox.ItemContainerStyle>
+                            <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,4,6"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="Tile" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="12"><Grid>
+                                        <Border x:Name="HoverLayer" Background="#F0F5FE" CornerRadius="11" controls:Motion.Opacity="0" IsHitTestVisible="False"/>
+                                        <Border x:Name="SelectionLayer" Background="#EAF2FF" BorderBrush="#B5D4FF" BorderThickness="1" CornerRadius="11" controls:Motion.Opacity="0" IsHitTestVisible="False"/>
+                                        <ContentPresenter/>
+                                    </Grid></Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="HoverLayer" Property="controls:Motion.Opacity" Value="1"/></Trigger>
+                                        <Trigger Property="IsSelected" Value="True"><Setter TargetName="SelectionLayer" Property="controls:Motion.Opacity" Value="1"/></Trigger>
+                                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Tile" Property="BorderBrush" Value="#0A84FF"/></Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate></Setter.Value></Setter></Style></ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate><DataTemplate>
                                 <Grid Width="97" Height="108" ToolTip="{Binding Path}">
                                     <Grid.RowDefinitions><RowDefinition Height="17"/><RowDefinition Height="51"/><RowDefinition Height="22"/><RowDefinition Height="18"/></Grid.RowDefinitions>
@@ -99,10 +125,10 @@
                             <Border BorderBrush="#E1E8F6" BorderThickness="1" CornerRadius="15" Height="132">
                                 <Border.Background><RadialGradientBrush GradientOrigin="0.75,0.25" Center="0.62,0.4" RadiusX="0.9" RadiusY="1"><GradientStop Color="#E5E9FF" Offset="0"/><GradientStop Color="#EDF5FF" Offset="0.55"/><GradientStop Color="#F9FBFF" Offset="1"/></RadialGradientBrush></Border.Background>
                                 <Grid Margin="7,3"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="22"/><ColumnDefinition/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="20"/></Grid.RowDefinitions>
-                                    <controls:NativePixelImage x:Name="OriginalPreview" Source="{Binding FocusedItem.Original}" PixelSize="{Binding PreviewPixelSize}" AllowUpscale="False" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <controls:NativePixelImage x:Name="OriginalPreview" AnimateSourceChanges="True" Source="{Binding FocusedItem.Original}" PixelSize="{Binding PreviewPixelSize}" AllowUpscale="False" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     <TextBlock Grid.Row="1" Text="原始图标" FontSize="{StaticResource CaptionSize}" Foreground="#65717D" HorizontalAlignment="Center" ToolTip="{Binding FocusedItem.SourceSizeLabel}"/>
                                     <Path Grid.Column="1" Data="M 1,5 L 11,5 M 7,1 L 11,5 7,9" Stroke="#95ACCD" StrokeThickness="1.2" Width="12" Height="10" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <controls:NativePixelImage x:Name="AdaptedPreview" Grid.Column="2" Source="{Binding FocusedItem.Preview}" PixelSize="{Binding PreviewPixelSize}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <controls:NativePixelImage x:Name="AdaptedPreview" AnimateSourceChanges="True" Grid.Column="2" Source="{Binding FocusedItem.Preview}" PixelSize="{Binding PreviewPixelSize}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     <TextBlock Grid.Row="1" Grid.Column="2" Text="适配效果" FontSize="{StaticResource CaptionSize}" Foreground="#65717D" HorizontalAlignment="Center"/>
                                 </Grid>
                             </Border>

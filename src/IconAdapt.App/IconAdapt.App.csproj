@@ -12,6 +12,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="IconAdapt.App.Smoke" />
     <Resource Include="Assets\IconAdapt.ico" />
     <ProjectReference Include="..\IconAdapt.Core\IconAdapt.Core.csproj" />
     <ProjectReference Include="..\IconAdapt.Windows\IconAdapt.Windows.csproj" />

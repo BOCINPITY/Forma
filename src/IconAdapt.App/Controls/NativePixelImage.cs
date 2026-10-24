@@ -8,12 +8,14 @@ namespace IconAdapt.App.Controls;
 public sealed class NativePixelImage : FrameworkElement
 {
     public static readonly DependencyProperty SourceProperty = DependencyProperty.Register(
-        nameof(Source), typeof(BitmapSource), typeof(NativePixelImage), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+        nameof(Source), typeof(BitmapSource), typeof(NativePixelImage), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnSourceChanged));
     public static readonly DependencyProperty PixelSizeProperty = DependencyProperty.Register(
         nameof(PixelSize), typeof(int), typeof(NativePixelImage), new FrameworkPropertyMetadata(48, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender),
         value => value is int size && size is > 0 and <= 1024);
     public static readonly DependencyProperty AllowUpscaleProperty = DependencyProperty.Register(
         nameof(AllowUpscale), typeof(bool), typeof(NativePixelImage), new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty AnimateSourceChangesProperty = DependencyProperty.Register(
+        nameof(AnimateSourceChanges), typeof(bool), typeof(NativePixelImage), new PropertyMetadata(false));
 
     public NativePixelImage()
     {
@@ -25,6 +27,16 @@ public sealed class NativePixelImage : FrameworkElement
     public BitmapSource? Source { get => (BitmapSource?)GetValue(SourceProperty); set => SetValue(SourceProperty, value); }
     public int PixelSize { get => (int)GetValue(PixelSizeProperty); set => SetValue(PixelSizeProperty, value); }
     public bool AllowUpscale { get => (bool)GetValue(AllowUpscaleProperty); set => SetValue(AllowUpscaleProperty, value); }
+    public bool AnimateSourceChanges { get => (bool)GetValue(AnimateSourceChangesProperty); set => SetValue(AnimateSourceChangesProperty, value); }
+
+    private static void OnSourceChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    {
+        var image = (NativePixelImage)sender;
+        // Only the inspector opts in. Keep raw image controls and gallery pixels
+        // immediate; a source change never transforms or resamples the bitmap.
+        if (image.AnimateSourceChanges && args.OldValue is BitmapSource && args.NewValue is BitmapSource)
+            Motion.FadeIn(image);
+    }
 
     protected override Size MeasureOverride(Size availableSize)
     {

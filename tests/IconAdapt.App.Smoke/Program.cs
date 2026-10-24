@@ -11,9 +11,14 @@ using IconAdapt.Imaging;
 internal static class Program
 {
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
-        try { Run(); return 0; }
+        try
+        {
+            if (args.Contains("--motion", StringComparer.OrdinalIgnoreCase)) MotionChecks.Run();
+            else Run();
+            return 0;
+        }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
     }
 
@@ -102,6 +107,7 @@ internal static class Program
         Console.WriteLine("PASS: WPF exported-pixel equality, native-source size, frame switching, source propagation and explicit clarity preset.");
         RestoreDefaultsVmChecks.Run(png, renderer, root);
         LayoutChecks.Run();
+        MotionChecks.Run();
     }
 
     private static byte[] Draw(NativePixelImage control, int size)
