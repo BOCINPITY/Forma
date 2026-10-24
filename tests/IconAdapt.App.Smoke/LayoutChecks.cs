@@ -74,7 +74,6 @@ internal static class LayoutChecks
             {
                 window.Width = size.Width;
                 window.Height = size.Height;
-                vm.ShowHistory = false;
                 vm.PreviewSizeCommand.Execute("96");
                 var details = Named<Expander>(window, "DetailExpander");
                 details.IsExpanded = false;
@@ -104,29 +103,29 @@ internal static class LayoutChecks
             Settle(window);
             VerifyWorkspace(window, new Size(960, 680));
             Capture(window, Path.Combine(output, "issue-960x680.png"));
-            vm.ShowHistory = true;
+            VerifyLongRestoreNotice(window, vm, service, output);
+
+            service.HasRestorableBatch = false;
+            service.Warnings = [];
+            vm.ScanCommand.Execute(null);
+            Complete(vm.WaitForIdleAsync());
             Settle(window);
-            VisibleWithin(Named<Button>(window, "RestoreButton"), (FrameworkElement)window.Content);
-            Check(Named<Button>(window, "RestoreButton").IsEnabled, "A restorable fixture batch must enable Restore.");
-            Capture(window, Path.Combine(output, "history-960x680.png"));
+            Check(!vm.IsEmpty && !vm.CanRestoreDefaults && !Named<Button>(window, "RestoreDefaultsButton").IsEnabled,
+                "A populated workspace without an active restore candidate must disable Restore Defaults.");
+            Capture(window, Path.Combine(output, "no-restore-candidates-960x680.png"));
 
             service.Empty = true;
             vm.ScanCommand.Execute(null);
             Complete(vm.WaitForIdleAsync());
-            vm.ShowHistory = false;
             Settle(window);
             Check(vm.IsEmpty, "The empty fixture must show the empty workspace.");
             Check(Descendants((FrameworkElement)window.Content).OfType<TextBlock>().Any(x => x.IsVisible && x.Text == "选择一个图标开始预览"),
                 "Empty workspace must display an explicit preview placeholder, including an unset nested binding.");
             VisibleWithin(Named<Button>(window, "ApplyButton"), (FrameworkElement)window.Content);
             Check(!Named<Button>(window, "ApplyButton").IsEnabled, "Empty workspace must disable Apply.");
+            Check(!vm.CanRestoreDefaults && !Named<Button>(window, "RestoreDefaultsButton").IsEnabled,
+                "A workspace without stored active operations must disable Restore Defaults.");
             Capture(window, Path.Combine(output, "empty-960x680.png"));
-            vm.ShowHistory = true;
-            Settle(window);
-            Check(!vm.HasHistory && !Named<Button>(window, "RestoreButton").IsEnabled, "Empty history must disable Restore.");
-            Check(Descendants((FrameworkElement)window.Content).OfType<TextBlock>().Any(x => x.IsVisible && x.Text == "尚无操作记录"),
-                "Empty history must display its title rather than leave an unexplained blank panel.");
-            Capture(window, Path.Combine(output, "empty-history-960x680.png"));
         }
         finally
         {
@@ -134,7 +133,7 @@ internal static class LayoutChecks
             SynchronizationContext.SetSynchronizationContext(previousContext);
         }
         Check(service.WriteAttempts == 0, "Layout tests must never apply or restore shortcuts.");
-        Console.WriteLine($"PASS: {assertions} layout checks; 31 synthetic icons, three window sizes, 96px previews, expanded details, issue/history/empty states. Screenshots: {output}");
+        Console.WriteLine($"PASS: {assertions} layout checks; 31 synthetic icons, three window sizes, 96px previews, details, restore availability/results and empty states. Screenshots: {output}");
     }
 
     private static void VerifyWorkspace(MainWindow window, Size requested)
@@ -142,8 +141,12 @@ internal static class LayoutChecks
         var root = (FrameworkElement)window.Content;
         Check(Math.Abs(window.ActualWidth - requested.Width) < 2 && Math.Abs(window.ActualHeight - requested.Height) < 2,
             $"Window must support {requested.Width}×{requested.Height} without minimum-size coercion.");
-        foreach (string name in new[] { "IconGallery", "Inspector", "PreviewPanel", "StyleControls", "ApplyButton" })
+        foreach (string name in new[] { "IconGallery", "Inspector", "PreviewPanel", "StyleControls", "ApplyButton", "RestoreDefaultsButton" })
             VisibleWithin(Named<FrameworkElement>(window, name), root);
+        var vm = (MainViewModel)window.DataContext;
+        var restore = Named<Button>(window, "RestoreDefaultsButton");
+        Check(ReferenceEquals(restore.Command, vm.RestoreDefaultsCommand), "Restore Defaults must remain bound to its recovery action.");
+        Check(vm.CanRestoreDefaults && restore.IsEnabled, "Stored active fixture operations must enable Restore Defaults at every window size.");
         var settings = Named<FrameworkElement>(window, "StyleControls");
         foreach (var control in Descendants(settings).OfType<Control>().Where(x => x.IsVisible && (x is ComboBox or Slider or TextBox or CheckBox)))
             VisibleWithin(control, root);
@@ -180,8 +183,42 @@ internal static class LayoutChecks
             Check(button != null, $"Window must expose an accessible {action} button.");
             Check(WindowChrome.GetIsHitTestVisibleInChrome(button!), $"{action} button must remain clickable in the caption.");
         }
-        foreach (var button in buttons.Where(x => ReferenceEquals(x.Command, ((MainViewModel)window.DataContext).WorkspaceCommand) || ReferenceEquals(x.Command, ((MainViewModel)window.DataContext).HistoryCommand)))
-            Check(WindowChrome.GetIsHitTestVisibleInChrome(button), "Caption navigation buttons must remain clickable.");
+        Check(window.FindName("HistoryPanel") == null && buttons.All(x => x.Content is not string label || label is not ("图标工作台" or "恢复记录")),
+            "The single workspace must not retain the former page navigation or history panel.");
+        var restore = Named<Button>(window, "RestoreDefaultsButton");
+        VisibleWithin(restore, (FrameworkElement)window.Content);
+        if (Bounds(restore, (FrameworkElement)window.Content).Top < chrome!.CaptionHeight)
+            Check(WindowChrome.GetIsHitTestVisibleInChrome(restore), "Restore Defaults must be clickable when placed inside the caption.");
+    }
+
+    private static void VerifyLongRestoreNotice(MainWindow window, MainViewModel vm, LayoutService service, string output)
+    {
+        // Inject synthetic display results through a read-only scan warning. Recovery
+        // transactions are tested separately; this host must never execute a write action.
+        string result = "恢复默认结果：18 项已恢复，2 项失败，1 项文件冲突。\n" +
+            string.Join("\n", Enumerable.Range(1, 18).Select(i => $"测试项目 {i:00}：文件已变化或访问被拒绝，原始备份仍保留，请核对后重试。")) +
+            "\n最后一项结果：冲突文件未被覆盖，恢复信息已完整保留。";
+        service.Warnings = [result];
+        vm.ScanCommand.Execute(null);
+        Complete(vm.WaitForIdleAsync());
+        var notice = Named<Expander>(window, "NoticeExpander");
+        notice.IsExpanded = true;
+        Settle(window);
+        VerifyWorkspace(window, new Size(960, 680));
+        VisibleWithin(notice, (FrameworkElement)window.Content);
+        var message = Descendants(notice).OfType<TextBlock>().FirstOrDefault(x => x.Text == result);
+        Check(message != null && message.IsVisible && message.TextWrapping == TextWrapping.Wrap && message.TextTrimming == TextTrimming.None,
+            "Expanded restore results must retain the entire readable, wrapped message.");
+        var scroll = Descendants(notice).OfType<ScrollViewer>().FirstOrDefault(x => x.ScrollableHeight > 0);
+        Check(scroll != null, "A long restore result must provide its own scrolling area.");
+        Check(scroll!.ViewportHeight >= 48, "Expanded restore results must leave enough space to read several lines at once.");
+        scroll!.ScrollToEnd();
+        Settle(window);
+        Check(Math.Abs(scroll.VerticalOffset - scroll.ScrollableHeight) < 1.5,
+            "The final restore result must remain reachable by scrolling.");
+        Capture(window, Path.Combine(output, "restore-results-960x680.png"));
+        notice.IsExpanded = false;
+        Settle(window);
     }
 
     private static void VerifyControls(MainWindow window, MainViewModel vm)
@@ -375,6 +412,8 @@ internal static class LayoutChecks
         private readonly IReadOnlyList<ShortcutInfo> fixtures;
         private readonly OperationBatch batch;
         public bool Empty { get; set; }
+        public bool HasRestorableBatch { get; set; } = true;
+        public IReadOnlyList<string> Warnings { get; set; } = [];
         public int WriteAttempts { get; private set; }
         public LayoutService(string root)
         {
@@ -398,10 +437,11 @@ internal static class LayoutChecks
             };
         }
         public void Dispose() { }
-        public Task<ScanResult> ScanAsync(string? directory = null, CancellationToken cancellationToken = default) => Task.FromResult(new ScanResult(Empty ? [] : fixtures, []));
-        public Task<IReadOnlyList<OperationBatch>> GetHistoryAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OperationBatch>>(Empty ? [] : [batch]);
+        public Task<ScanResult> ScanAsync(string? directory = null, CancellationToken cancellationToken = default) => Task.FromResult(new ScanResult(Empty ? [] : fixtures, Warnings));
+        public Task<IReadOnlyList<OperationBatch>> GetHistoryAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OperationBatch>>(Empty || !HasRestorableBatch ? [] : [batch]);
         public Task<OperationBatch> ApplyAsync(IReadOnlyList<IconChange> changes, CancellationToken cancellationToken = default) { WriteAttempts++; throw new InvalidOperationException("Layout tests cannot write shortcuts."); }
         public Task<OperationBatch> RestoreAsync(string batchId, CancellationToken cancellationToken = default) { WriteAttempts++; throw new InvalidOperationException("Layout tests cannot restore shortcuts."); }
+        public Task<RestoreDefaultsResult> RestoreDefaultsAsync(CancellationToken cancellationToken = default) { WriteAttempts++; throw new InvalidOperationException("Layout tests cannot restore default icons."); }
         private static byte[] Icon(int index, int size)
         {
             Color[] colors = [Color.FromRgb(44, 61, 80), Color.FromRgb(221, 161, 58), Color.FromRgb(95, 143, 183), Color.FromRgb(210, 96, 116), Color.FromRgb(82, 158, 139), Color.FromRgb(134, 111, 195)];

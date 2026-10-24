@@ -23,6 +23,11 @@ public sealed record ScanResult(IReadOnlyList<ShortcutInfo> Items, IReadOnlyList
 
 public sealed record IconChange(string ShortcutPath, string ExpectedHash, byte[] IconFile);
 
+// Restored means every active adaptation layer for this path was resolved, not only the newest one.
+public sealed record RestoreDefaultItem(string ShortcutPath, bool Restored, string? Error);
+
+public sealed record RestoreDefaultsResult(IReadOnlyList<RestoreDefaultItem> Items, bool Cancelled);
+
 public sealed class OperationItem
 {
     public string ShortcutPath { get; set; } = "";
@@ -50,6 +55,9 @@ public interface IShortcutService : IDisposable
     Task<OperationBatch> ApplyAsync(IReadOnlyList<IconChange> changes, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OperationBatch>> GetHistoryAsync(CancellationToken cancellationToken = default);
     Task<OperationBatch> RestoreAsync(string batchId, CancellationToken cancellationToken = default);
+    // All active paths in this storage root, independent of the current scan or UI selection.
+    Task<RestoreDefaultsResult> RestoreDefaultsAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("此快捷方式服务不支持恢复默认图标。");
 }
 
 public enum BackdropStyle { Gradient, Solid, None, MacOS }

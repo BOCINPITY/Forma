@@ -100,6 +100,7 @@ internal static class Program
         using (var fresh = new MainViewModel(new FakeService(png, root), renderer, root, Path.Combine(root, "fresh")))
             Check(fresh.IsMacStyle && fresh.ContentScale == .8, "A fresh installation must start with the new macOS style.");
         Console.WriteLine("PASS: WPF exported-pixel equality, native-source size, frame switching, source propagation and explicit clarity preset.");
+        RestoreDefaultsVmChecks.Run(png, renderer, root);
         LayoutChecks.Run();
     }
 

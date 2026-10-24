@@ -329,6 +329,7 @@ using (var parsed = JsonDocument.Parse(validJournal))
     Check(missingSchema, "missing schema is rejected rather than defaulted");
     File.WriteAllText(unsafeJournal, validJournal);
 }
+await RestoreDefaultsChecks.Run(testRoot, ico, Check);
 Console.WriteLine($"Windows smoke passed: {assertions} assertions. Test artifacts: {testRoot}");
 
 void SaveJournal(OperationBatch batch) => File.WriteAllText(Path.Combine(storage, "operations", batch.Id + ".json"), JsonSerializer.Serialize(batch));

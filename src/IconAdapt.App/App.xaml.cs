@@ -49,7 +49,7 @@ public partial class App : Application
     {
         e.Handled = true;
         if (smokeOutput != null) { ReportFatal(e.Exception); return; }
-        MessageBox.Show($"操作出现异常：{e.Exception.Message}\n\n请核对恢复记录。原始快捷方式备份会保留在本机。", "Forma", MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show($"操作出现异常：{e.Exception.Message}\n\n原始备份仍保留。请重新打开程序核对图标状态，必要时点击“恢复默认图标”。", "Forma", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private void ReportFatal(Exception ex)

@@ -54,6 +54,11 @@ internal static class FeedbackChecks
         var success = new OperationBatch { Items = [Item("applied", privateLink)] };
         notice = OperationFeedback.ApplyNotice(success);
         Check(notice.Contains("1 项已确认成功并通知 Windows") && !notice.Contains("应用失败"), "Successful batches should retain an accurate desktop-update explanation.");
+        Check(!notice.Contains("恢复记录") && !OperationFeedback.ApplyNotice(accident).Contains("恢复记录"),
+            "Current feedback must not refer to the removed history page.");
+        string restoreDenied = OperationFeedback.RestoreAdvice(denied);
+        Check(restoreDenied.Contains("恢复默认图标") && restoreDenied.Contains(denied) && !restoreDenied.Contains("勾选"),
+            "Restore permissions must offer restore-specific retry guidance and retain the original error.");
         Console.WriteLine("PASS: operation feedback regression branches (mixed, failed, cancelled, uncertain, permissions and raw errors)");
     }
 

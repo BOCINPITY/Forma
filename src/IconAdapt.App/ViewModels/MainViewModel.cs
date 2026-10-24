@@ -36,10 +36,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectAllCommand = new(_ => SetSelection(true), _ => !IsBusy && Items.Count > 0);
         SelectNoneCommand = new(_ => SetSelection(false), _ => !IsBusy && Items.Count > 0);
         ApplyCommand = new(_ => _ = ApplyAsync(), _ => !IsBusy && !IsRendering && StyleError.Length == 0 && Items.Any(x => x.IsSelected) && Items.Where(x => x.IsSelected).All(x => x.Rendered != null));
-        RestoreCommand = new(_ => _ = RestoreAsync(), _ => !IsBusy && SelectedBatch?.CanRestore == true);
+        RestoreDefaultsCommand = new(_ => _ = RestoreDefaultsAsync(), _ => !IsBusy && CanRestoreDefaults);
         CancelCommand = new(_ => { operationCancellation?.Cancel(); CancelCommand?.Refresh(); }, _ => IsBusy && operationCancellation?.IsCancellationRequested == false);
-        WorkspaceCommand = new(_ => ShowHistory = false);
-        HistoryCommand = new(_ => { ShowHistory = true; _ = RefreshHistorySafelyAsync(); }, _ => !IsBusy);
         ColorCommand = new(value => { if (value is string hex) BackgroundColor = hex; }, _ => CanChooseColor);
         PreviewSizeCommand = new(value =>
         {
@@ -50,7 +48,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     public ObservableCollection<ShortcutItem> Items { get; } = [];
-    public ObservableCollection<BatchViewModel> History { get; } = [];
     public string Version => typeof(MainViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "开发版";
     public string SourceLabel => directory == null ? "当前用户桌面 + 公共桌面" : directory;
     public string SourceShortLabel => directory is null ? "桌面快捷方式" :
@@ -58,7 +55,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public string SourceTooltip => SourceLabel;
     public string SelectionLabel => $"已选择 {Items.Count(x => x.IsSelected)} / {Items.Count(x => x.CanSelect)} 项";
     public bool IsEmpty => Items.Count == 0;
-    public bool HasHistory => History.Count > 0;
+    private bool canRestoreDefaults;
+    public bool CanRestoreDefaults { get => canRestoreDefaults; private set { if (Set(ref canRestoreDefaults, value)) RestoreDefaultsCommand?.Refresh(); } }
     public bool CanEdit => !IsBusy;
     public bool IsMacStyle => BackdropIndex == (int)BackdropStyle.MacOS;
     public bool CanChooseColor => CanEdit && !IsMacStyle;
@@ -106,10 +104,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public string Notice { get => notice; private set { if (Set(ref notice, value)) { Changed(nameof(NoticeSummary)); Changed(nameof(NoticeDetail)); Changed(nameof(NoticeHasIssue)); } } }
     public string NoticeDetail => Notice;
     // Severity comes from actual outcomes, not words such as "失败" in explanatory guidance.
-    public bool NoticeHasIssue => noticeNeedsAttention || ShowWorkspace && Items.Any(x => x.HasIssue);
+    public bool NoticeHasIssue => noticeNeedsAttention || Items.Any(x => x.HasIssue);
     public string NoticeSummary => NoticeHasIssue ? "有项目或提示需要核对，展开查看详情" :
-        Status == "操作已停止" || Notice.Contains("已取消", StringComparison.Ordinal) ? "操作已停止，可在恢复记录中核对" :
-        Status.StartsWith("恢复结束", StringComparison.Ordinal) ? "恢复结果已保存，可查看批次详情" :
+        Status == "操作已停止" || Notice.Contains("已取消", StringComparison.Ordinal) ? "操作已停止，可展开查看结果" :
+        Status.StartsWith("恢复结束", StringComparison.Ordinal) || Status.StartsWith("恢复已停止", StringComparison.Ordinal) ? "恢复结果已保存，可展开查看" :
         "本地预览 · 应用时自动备份";
     private void SetNotice(string message, bool needsAttention = false)
     {
@@ -117,13 +115,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Notice = message;
         Changed(nameof(NoticeHasIssue)); Changed(nameof(NoticeSummary));
     }
-    private bool showHistory;
-    public bool ShowHistory { get => showHistory; set { if (Set(ref showHistory, value)) { Changed(nameof(ShowWorkspace)); Changed(nameof(NoticeHasIssue)); Changed(nameof(NoticeSummary)); } } }
-    public bool ShowWorkspace => !ShowHistory;
     private ShortcutItem? focusedItem;
     public ShortcutItem? FocusedItem { get => focusedItem; set => Set(ref focusedItem, value); }
-    private BatchViewModel? selectedBatch;
-    public BatchViewModel? SelectedBatch { get => selectedBatch; set { if (Set(ref selectedBatch, value)) RefreshCommands(); } }
     private int backdropIndex = (int)BackdropStyle.MacOS;
     public int BackdropIndex { get => backdropIndex; set { if (Set(ref backdropIndex, value)) { Changed(nameof(IsMacStyle)); Changed(nameof(CanChooseColor)); ColorCommand?.Refresh(); SchedulePreview(); } } }
     private string backgroundColor = "#7772EE";
@@ -147,10 +140,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand SelectAllCommand { get; }
     public RelayCommand SelectNoneCommand { get; }
     public RelayCommand ApplyCommand { get; }
-    public RelayCommand RestoreCommand { get; }
+    public RelayCommand RestoreDefaultsCommand { get; }
     public RelayCommand CancelCommand { get; }
-    public RelayCommand WorkspaceCommand { get; }
-    public RelayCommand HistoryCommand { get; }
     public RelayCommand ColorCommand { get; }
     public RelayCommand PreviewSizeCommand { get; }
     public RelayCommand ClarityPresetCommand { get; }
@@ -275,7 +266,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (!ApplyCommand.CanExecute(null)) return;
         var selection = Items.Where(x => x.IsSelected).ToArray();
         if (selection.Any(x => x.Rendered == null)) { SetNotice("选中的项目包含预览失败项，请先取消选择或调整风格。", true); return; }
-        if (MessageBox.Show($"将修改 {selection.Length} 个快捷方式的图标。\n\n程序会先保存原始快捷方式备份和操作记录。应用后可在“恢复记录”中恢复。\n\n生成的图标会保留在本机，请勿手动删除数据目录。", "应用图标适配", MessageBoxButton.OKCancel, MessageBoxImage.Information) != MessageBoxResult.OK) return;
+        if (MessageBox.Show($"将修改 {selection.Length} 个快捷方式的图标。\n\n程序会先自动备份。以后可点击“恢复默认图标”还原。\n\n生成的图标会保留在本机，请勿手动删除数据目录。", "应用图标适配", MessageBoxButton.OKCancel, MessageBoxImage.Information) != MessageBoxResult.OK) return;
         var changes = selection.Select(x => new IconChange(x.Path, x.Info.FileHash, x.Rendered!.IconFile)).ToArray();
         await RunOperationAsync($"正在备份并应用 {changes.Length} 项…", async token =>
         {
@@ -284,26 +275,38 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             {
                 var item = Items.FirstOrDefault(x => string.Equals(x.Path, result.ShortcutPath, StringComparison.OrdinalIgnoreCase));
                 if (item == null) continue;
-                item.Status = BatchItemViewModel.DisplayState(result.State);
+                item.Status = OperationFeedback.DisplayState(result.State);
                 item.Detail = result.Error ?? OperationFeedback.ItemAdvice(null, result.ShortcutPath, result.State);
                 if (result.AppliedHash != null) item.Info = item.Info with { FileHash = result.AppliedHash };
             }
             Status = OperationFeedback.ApplyStatus(batch);
             SetNotice(OperationFeedback.ApplyNotice(batch), BatchNeedsAttention(batch));
             await RefreshHistoryAsync(CancellationToken.None);
-            SelectedBatch = History.FirstOrDefault(x => x.Id == batch.Id) ?? SelectedBatch;
         });
     }
 
-    private async Task RestoreAsync()
+    private async Task RestoreDefaultsAsync()
     {
-        if (SelectedBatch is not { } batch || IsBusy) return;
-        if (MessageBox.Show($"恢复 {batch.Title} 这批快捷方式的原始图标？\n\n程序会检查文件是否被其他程序修改；冲突会保留并显示原因。", "恢复原始图标", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
-        await RunOperationAsync("正在恢复原始图标…", async token =>
+        if (!RestoreDefaultsCommand.CanExecute(null)) return;
+        if (MessageBox.Show("将恢复此账户下所有由 Forma 适配过的快捷方式，包括其他文件夹中的项目。\n\n连续多次适配会一次还原到首次适配前的图标，不受当前勾选范围限制。程序会保留外部修改过的文件并显示原因。", "恢复默认图标", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+        await RestoreDefaultsCoreAsync();
+    }
+
+    private async Task RestoreDefaultsCoreAsync()
+    {
+        await RunOperationAsync("正在恢复默认图标…", async token =>
         {
-            var result = await service.RestoreAsync(batch.Id, token);
-            Status = $"恢复结束 · {result.Items.Count(x => x.State == "restored")} 项已恢复 / {result.Items.Count} 项";
-            SetNotice("请查看本批次各项结果。恢复失败或文件冲突时，备份及操作记录仍保留。返回图标工作台后可重新扫描。", BatchNeedsAttention(result));
+            var result = await service.RestoreDefaultsAsync(token);
+            int restored = result.Items.Count(x => x.Restored);
+            int remaining = result.Items.Count - restored;
+            Status = result.Cancelled ? $"恢复已停止 · 已恢复 {restored} 项 · 未完成 {remaining} 项" :
+                $"恢复结束 · 已恢复 {restored} 项 · 未完成 {remaining} 项";
+            var details = new List<string> { result.Items.Count == 0 ? "没有需要恢复的图标。" :
+                $"{restored} 个快捷方式已恢复到首次适配前的图标。" };
+            foreach (var item in result.Items.Where(x => !x.Restored))
+                details.Add($"{item.ShortcutPath}\n{OperationFeedback.RestoreAdvice(item.Error)}");
+            if (remaining > 0) details.Add("未完成项目的备份仍保留。解决权限、占用或冲突后，可再次点击“恢复默认图标”。");
+            SetNotice(string.Join("\n\n", details), remaining > 0);
             await RefreshHistoryAsync(CancellationToken.None);
         });
         // Refresh file fingerprints and original sources after restoration before another apply.
@@ -317,18 +320,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SetNotice(restoreNotice + (scanFailed ? $"\n重新扫描未完成：{scanNotice}" : ""), restoreNeedsAttention || scanFailed);
     }
 
-    private async Task RefreshHistorySafelyAsync()
-    {
-        await RunOperationAsync("正在读取恢复记录…", async token => { await RefreshHistoryAsync(token); Status = $"共 {History.Count} 个操作批次"; });
-    }
     private async Task RefreshHistoryAsync(CancellationToken token)
     {
-        var id = SelectedBatch?.Id;
         var history = await service.GetHistoryAsync(token);
-        History.Clear();
-        foreach (var batch in history.OrderByDescending(x => x.CreatedAt)) History.Add(new(batch));
-        SelectedBatch = History.FirstOrDefault(x => x.Id == id) ?? History.FirstOrDefault();
-        Changed(nameof(HasHistory));
+        CanRestoreDefaults = history.Any(batch => batch.Items.Any(x => x.State is "applied" or "pending" or "restoring" or "conflict"));
     }
 
     private async Task RunOperationAsync(string message, Func<CancellationToken, Task> action)
@@ -340,14 +335,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IsBusy = true;
         Status = message;
         try { await action(operationCancellation.Token); }
-        catch (OperationCanceledException) { Status = "操作已停止"; SetNotice("已完成的操作会保留。涉及修改时，请在恢复记录中查看实际结果。"); await RecoverHistoryAsync(); }
+        catch (OperationCanceledException) { Status = "操作已停止"; SetNotice("已完成的操作会保留。可查看图标上的状态，或点击“恢复默认图标”还原。"); await RecoverHistoryAsync(); }
         catch (Exception ex) { Status = "操作未能完成"; SetNotice(FriendlyError(ex), true); await RecoverHistoryAsync(); }
         finally { IsBusy = false; operationFinished.TrySetResult(); }
     }
     private async Task RecoverHistoryAsync()
     {
         try { await RefreshHistoryAsync(CancellationToken.None); }
-        catch (Exception ex) { SetNotice(Notice + $"\n恢复记录暂时无法读取：{ex.Message}", true); }
+        catch (Exception ex) { SetNotice(Notice + $"\n备份状态暂时无法读取，请重新扫描后重试：{ex.Message}", true); }
     }
     private static bool BatchNeedsAttention(OperationBatch batch) => batch.Items.Any(x =>
         x.State is "failed" or "restore_failed" or "pending" or "restoring" or "conflict" or "queued");
@@ -355,7 +350,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         UnauthorizedAccessException => $"没有权限访问该位置，请选择可读写的文件夹或跳过受保护的快捷方式。\n{ex.Message}",
         IOException => $"文件读写失败，请检查文件是否存在、被占用或磁盘空间不足。\n{ex.Message}",
-        _ => $"{ex.Message}\n操作记录和备份会保留，请在恢复记录中核对结果。"
+        _ => $"{ex.Message}\n备份会保留，可展开查看结果并重试，或点击“恢复默认图标”。"
     };
 
     public void Cancel() { operationCancellation?.Cancel(); previewCancellation?.Cancel(); CancelCommand.Refresh(); }
@@ -367,7 +362,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void RefreshCommands()
     {
         ScanCommand?.Refresh(); ChooseFolderCommand?.Refresh(); DesktopCommand?.Refresh(); SelectAllCommand?.Refresh(); SelectNoneCommand?.Refresh();
-        ApplyCommand?.Refresh(); RestoreCommand?.Refresh(); CancelCommand?.Refresh(); HistoryCommand?.Refresh(); ColorCommand?.Refresh(); ClarityPresetCommand?.Refresh(); MacPresetCommand?.Refresh();
+        ApplyCommand?.Refresh(); RestoreDefaultsCommand?.Refresh(); CancelCommand?.Refresh(); ColorCommand?.Refresh(); ClarityPresetCommand?.Refresh(); MacPresetCommand?.Refresh();
     }
     private void LoadSettings()
     {

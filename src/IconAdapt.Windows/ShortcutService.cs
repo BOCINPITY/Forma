@@ -53,6 +53,10 @@ public sealed class ShortcutService : IShortcutService
         return Run(() => Restore(batchId, cancellationToken), cancellationToken);
     }
 
+    public Task<RestoreDefaultsResult> RestoreDefaultsAsync(CancellationToken cancellationToken = default)
+        // Even a pre-cancelled request returns the active-path snapshot, without changing files.
+        => Run(() => RestoreDefaults(cancellationToken), CancellationToken.None);
+
     private Task<T> Run<T>(Func<T> action, CancellationToken token)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -244,10 +248,43 @@ public sealed class ShortcutService : IShortcutService
         using var lease = Lease();
         var history = ReadHistory();
         var batch = history.SingleOrDefault(b => b.Id == id) ?? throw new FileNotFoundException("找不到此批次记录。");
+        RestoreCore(history, batch, token);
+        return batch;
+    }
+
+    private RestoreDefaultsResult RestoreDefaults(CancellationToken token)
+    {
+        using var lease = Lease();
+        var history = ReadHistory();
+        var paths = history.SelectMany(b => b.Items).Where(IsActive)
+            .GroupBy(x => x.ShortcutPath, StringComparer.OrdinalIgnoreCase)
+            .Select(g => (Path: g.Key, Layers: g.ToArray())).ToArray();
+        var blocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Share the same objects and lease throughout so parent hashes repaired by a newer
+        // restore are visible before the older layer is attempted.
+        foreach (var batch in history)
+        {
+            if (token.IsCancellationRequested) break;
+            RestoreCore(history, batch, token, blocked);
+        }
+        var results = paths.Select(path =>
+        {
+            var unresolved = path.Layers.FirstOrDefault(x => x.State != "restored");
+            return new RestoreDefaultItem(path.Path, unresolved is null, unresolved is null ? null :
+                unresolved.Error ?? (token.IsCancellationRequested ? "操作已停止，尚未恢复到默认图标，可再次恢复。" : "仍有适配记录未恢复，请核对后重试。"));
+        }).ToArray();
+        return new(results, token.IsCancellationRequested);
+    }
+
+    private static bool IsActive(OperationItem item) => item.State is "applied" or "pending" or "restoring" or "conflict";
+
+    private void RestoreCore(List<OperationBatch> history, OperationBatch batch, CancellationToken token,
+        HashSet<string>? blocked = null)
+    {
         foreach (var item in batch.Items.AsEnumerable().Reverse())
         {
             if (token.IsCancellationRequested) break; // Preserve already restored outcomes.
-            if (item.State is "restored" or "failed" or "queued" or "cancelled") continue;
+            if (!IsActive(item) || blocked?.Contains(item.ShortcutPath) == true) continue;
             bool recoveringRestore = item.State == "restoring";
             try
             {
@@ -279,13 +316,15 @@ public sealed class ShortcutService : IShortcutService
                     throw new IOException("图标引用已在程序外修改；请核对当前快捷方式。");
                 }
                 if (!SamePath(current.IconPath, item.GeneratedIconPath) || current.IconIndex != 0)
-                    throw new IOException("存在后续适配或外部图标修改，请先恢复较新的批次。");
+                    throw new IOException(blocked is null ? "存在后续适配或外部图标修改，请先恢复较新的批次。" :
+                        "当前图标引用与适配记录不一致，已保留当前文件；请核对外部修改后重试。");
                 if (item.AppliedHash is not null && currentHash != item.AppliedHash)
                     throw new IOException("快捷方式在适配后已变化，已保留当前文件。");
                 // If a newer pending record exists it must be resolved first, even if its write
                 // has not yet occurred. Otherwise its OriginalHash could describe the wrong layer.
                 if (history.Any(b => b.CreatedAt > batch.CreatedAt && b.Items.Any(x => SamePath(x.ShortcutPath, item.ShortcutPath) && x.State is "pending" or "restoring")))
-                    throw new IOException("此快捷方式有较新的未完成批次，请先恢复该批次。");
+                    throw new IOException(blocked is null ? "此快捷方式有较新的未完成批次，请先恢复该批次。" :
+                        "此快捷方式还有较新的操作未完成，已保留当前文件，请核对后重试恢复默认图标。");
                 item.State = "restoring";
                 item.Error = null;
                 Save(batch);
@@ -303,8 +342,8 @@ public sealed class ShortcutService : IShortcutService
                 item.Error = FormatItemError(e, item.ShortcutPath);
                 Save(batch);
             }
+            if (item.State != "restored") blocked?.Add(item.ShortcutPath);
         }
-        return batch;
     }
 
     private void UpdateParent(List<OperationBatch> history, OperationBatch restored, OperationItem item, string hash)

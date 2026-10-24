@@ -114,28 +114,3 @@ public sealed class ShortcutItem : ObservableObject
         return image;
     }
 }
-
-public sealed class BatchViewModel(OperationBatch batch)
-{
-    public OperationBatch Batch { get; } = batch;
-    public string Id => Batch.Id;
-    public string Title => Batch.CreatedAt.ToLocalTime().ToString("MM月dd日  HH:mm:ss");
-    public string Summary => OperationFeedback.BatchSummary(Batch);
-    public string SummaryForeground => Batch.Items.Any(x => x.State is "failed" or "restore_failed" or "pending" or "restoring" or "conflict") ? "#A75A3D" : "#747B82";
-    public IEnumerable<BatchItemViewModel> Items => Batch.Items.Select(x => new BatchItemViewModel(x));
-    public bool CanRestore => Batch.Items.Any(x => x.State is "applied" or "pending" or "restoring" or "conflict");
-}
-
-public sealed class BatchItemViewModel(OperationItem item)
-{
-    public string Name => System.IO.Path.GetFileNameWithoutExtension(item.ShortcutPath);
-    public string Detail => item.Error ?? item.ShortcutPath;
-    public string Diagnostic => OperationFeedback.ItemAdvice(item.Error, item.ShortcutPath, item.State);
-    public string Status => DisplayState(item.State);
-    public static string DisplayState(string state) => state switch
-    {
-        "applied" => "已应用", "restored" => "已恢复", "failed" => "应用失败", "pending" => "待核对 / 可恢复",
-        "restoring" => "待核对 / 可恢复", "queued" => "尚未开始", "cancelled" => "已取消",
-        "restore_failed" => "恢复失败", "conflict" => "文件已变化", _ => state
-    };
-}

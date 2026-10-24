@@ -31,36 +31,49 @@ public static class OperationFeedback
         var count = Count(batch);
         var parts = new List<string>();
         if (count.Applied == 0) parts.Add("本批没有图标被确认应用成功。");
-        if (count.Failed > 0) parts.Add($"{count.Failed} 项应用失败，请在恢复记录中查看原因；不要重复应用已成功项。");
+        if (count.Failed > 0) parts.Add($"{count.Failed} 项应用失败，原因见下方；不要重复应用已成功项。");
         var permissionItems = batch.Items.Where(x => x.State != "applied" && IsAccessDenied(x.Error)).ToArray();
         if (permissionItems.Any(x => IsPublicDesktop(x.ShortcutPath))) parts.Add(PublicDesktopAdvice);
         if (permissionItems.Any(x => !IsPublicDesktop(x.ShortcutPath))) parts.Add(ProtectedItemAdvice);
         var preserved = batch.Items.Count(x => x.State is "pending" or "failed" && IsProtectionAbort(x.Error));
-        if (preserved > 0) parts.Add($"{preserved} 项属性校验未通过，已中止，原快捷方式保留；可在恢复记录中核对或恢复。");
+        if (preserved > 0) parts.Add($"{preserved} 项属性校验未通过，已中止，原快捷方式保留；可重新扫描核对，或点击“恢复默认图标”。");
         var uncertain = batch.Items.Count(x => x.State is "pending" or "restoring" && !IsProtectionAbort(x.Error));
-        if (uncertain > 0) parts.Add($"{uncertain} 项状态待核对，不能视为成功。请先查看恢复记录，必要时恢复后再扫描。");
+        if (uncertain > 0) parts.Add($"{uncertain} 项状态待核对，不能视为成功。请核对下方原因，必要时恢复默认图标后再扫描。");
         if (count.Cancelled > 0) parts.Add($"{count.Cancelled} 项已取消，尚未修改。");
         if (count.Queued > 0) parts.Add($"{count.Queued} 项尚未开始，请核对操作记录后重新扫描。");
-        if (count.Conflicts > 0) parts.Add($"{count.Conflicts} 项有冲突，已保留当前文件，请先在恢复记录中核对。");
+        if (count.Conflicts > 0) parts.Add($"{count.Conflicts} 项有冲突，已保留当前文件，请核对下方原因。");
         if (count.Applied > 0) parts.Add($"仅 {count.Applied} 项已确认成功并通知 Windows 更新。若这些项目尚未显示，可在桌面按 F5 刷新。");
+        foreach (var item in batch.Items.Where(x => x.State is "failed" or "pending" or "restoring" or "conflict"))
+            parts.Add($"{item.ShortcutPath}\n{ItemAdvice(item.Error, item.ShortcutPath, item.State)}");
         return string.Join("\n", parts);
     }
 
     public static string ItemAdvice(string? error, string shortcutPath, string? state = null)
     {
         if (IsAccessDenied(error)) return IsPublicDesktop(shortcutPath) ? PublicDesktopAdvice : ProtectedItemAdvice;
-        if (IsProtectionAbort(error)) return "属性校验未通过，已中止，原快捷方式保留；可在恢复记录中核对或恢复。请使用新版程序重新扫描后，仅重试这些项目。";
+        if (IsProtectionAbort(error)) return "属性校验未通过，已中止，原快捷方式保留。请重新扫描后仅重试这些项目，或点击“恢复默认图标”。";
         if (!string.IsNullOrWhiteSpace(error)) return error;
         return state switch
         {
-            "pending" or "restoring" => "操作状态待核对，不能视为成功。请核对本批次或尝试恢复；原始备份仍保留。",
+            "pending" or "restoring" => "操作状态待核对，不能视为成功。可点击“恢复默认图标”还原；原始备份仍保留。",
             "cancelled" => "已取消，尚未修改。",
             "queued" => "尚未开始，未确认修改。",
-            "applied" => "已应用，原始快捷方式已备份，可在恢复记录中还原。",
+            "applied" => "已应用，已自动备份，可点击“恢复默认图标”还原。",
             "restored" => "原始图标已恢复。",
             _ => shortcutPath
         };
     }
+
+    public static string DisplayState(string state) => state switch
+    {
+        "applied" => "已应用", "restored" => "已恢复", "failed" => "应用失败", "pending" => "待核对 / 可恢复",
+        "restoring" => "待核对 / 可恢复", "queued" => "尚未开始", "cancelled" => "已取消",
+        "restore_failed" => "恢复失败", "conflict" => "文件已变化", _ => state
+    };
+
+    public static string RestoreAdvice(string? error) => IsAccessDenied(error)
+        ? $"没有权限恢复此快捷方式。请先关闭程序，右键以管理员身份运行，再点击“恢复默认图标”。\n{error}"
+        : error ?? "尚未完成恢复，请核对文件后重试。";
 
     public const string PublicDesktopAdvice = "公共桌面快捷方式需要管理员权限。普通模式下请先取消勾选这些受保护项；若要修改，请先关闭程序，右键以管理员身份运行，再重新扫描，仅勾选失败项重试。";
     public const string ProtectedItemAdvice = "没有权限修改此快捷方式。普通模式下请先取消勾选受保护项；如需修改，请确认文件权限，或先关闭程序，右键以管理员身份运行，再重新扫描，仅勾选失败项重试。";

@@ -57,9 +57,13 @@ public partial class MainWindow : Window
         else SystemCommands.MaximizeWindow(this);
     }
     private void CloseWindow(object sender, RoutedEventArgs e) => Close();
-    private void ShowNoticeDetails(object sender, RoutedEventArgs e) =>
-        MessageBox.Show(this, viewModel.StatusDetail + "\n\n" + viewModel.NoticeDetail,
-            "操作详情", MessageBoxButton.OK, MessageBoxImage.Information);
+    private void ShowNoticeDetails(object sender, RoutedEventArgs e)
+    {
+        NoticeExpander.IsExpanded = true;
+        NoticeExpander.UpdateLayout();
+        NoticeScroll.ScrollToTop();
+        NoticeScroll.Focus();
+    }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
