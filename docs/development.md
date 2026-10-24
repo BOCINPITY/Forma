@@ -1,10 +1,10 @@
-# 开发与版本管理
+# 构建与发布
 
-[文档导航](README.md) · [English](en/development.md)
+[首页](../README.md) · [English](en/development.md)
 
-## 环境与命令
+## 本地开发
 
-Windows x64、Git 和 .NET 10 SDK；首轮目标 Windows 11。终端使用 PowerShell。
+使用 Windows x64、Git 和 PowerShell。SDK 固定为 10.0.402，可用项目脚本下载并校验，不修改系统 PATH。
 
 ```powershell
 git clone https://github.com/BOCINPITY/Forma.git
@@ -12,48 +12,31 @@ Set-Location .\Forma
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run.ps1
+```
+
+`check.ps1` 锁定还原、Release 构建并运行图像、Shell COM、集成和 WPF 检查；`-SkipSmoke` 只构建。测试写入自建快捷方式，集成检查还会只读扫描桌面。测试文件和 SDK 位于忽略提交的 `.local`。
+
+隔离启动可使用 `.\scripts\run.ps1 -ScanFolder '.\.local\demo' -DataRoot '.\.local\demo-data'`，先在扫描目录准备测试快捷方式。
+
+## 打包
+
+```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 ```
 
-`bootstrap.ps1` 从微软官方元数据定位固定 SDK 10.0.402，下载 Windows x64 ZIP，验证 SHA-512 后解压到 `.local\dotnet`。不提权、不改系统 PATH。其余脚本优先用本地 SDK，找不到时再查 PATH。
+输出 `artifacts\Forma-<版本>-win-x64\`、ZIP 和 `.sha256`。包内包含运行时、中英文图文使用说明、MIT 和第三方许可。完整保留文件夹，不单独分发 EXE。检查下载文件可使用 `Get-FileHash -LiteralPath '.\下载的文件.zip' -Algorithm SHA256`。
 
-`check.ps1` 执行解决方案 restore、Release build 和四个验证程序；`-SkipSmoke` 仅构建。测试仅创建 / 修改 `.local` 中的快捷方式；集成测试还会只读扫描实际桌面，控制台仅输出计数。不能把构建通过视作桌面效果已验证。
+## GitHub Actions
 
-开发便携版由 `publish.ps1` 生成到 `artifacts\Forma-<版本>-win-x64`，入口为 `Forma.exe`，包含运行时、原生库、中英文图文文档、MIT / 第三方许可和构建信息。根目录两份使用说明链接到 `docs` 中的完整指南，保留该目录可离线查看图片。按版本输出，避免覆盖运行中的旧版。`-Zip` 额外生成 ZIP 与 SHA-256 文件。不要提交 SDK、输出包或用户数据。
+- **Build**：`main` 推送、PR 和手动运行，检查并生成便携包；Actions 附件保留 14 天。
+- **Release**：推送版本标签，或手动指定已有标签，构建并上传 GitHub Release 的 ZIP / SHA-256。带 `-preview` 等后缀的版本标记为预发布。
+- Windows runner 使用同一 SDK；测试设置仅影响临时 runner。只有发布附件的 job 有仓库写权限，不上传 `.local`、测试记录或备份。
 
-## 隔离启动与截图
+发布时更新 `Directory.Build.props` 的版本、依赖锁和简短变更记录。提交到 `main`，Build 通过后创建与版本一致的标签：
 
 ```powershell
-.\scripts\run.ps1 -ScanFolder (Join-Path $PWD '.local\demo') -DataRoot (Join-Path $PWD '.local\demo-data')
+git tag -a v0.1.0-preview.9 -m 'Forma 0.1.0-preview.9'
+git push origin v0.1.0-preview.9
 ```
 
-直接运行应用还可传 `--scan-folder <绝对路径>`、`--data-root <绝对路径>`、`--smoke-ui <输出 PNG 路径>`。截图模式等待扫描及渲染完成后保存窗口内容并退出；失败时输出 `.error.txt`。它不执行应用或恢复。
-
-真实桌面验证时只读扫描无需写入；应用须由用户在界面选择并确认。自动验证坚持使用隔离测试目录。
-
-## Git 约定
-
-- `main` 保存项目基线，功能开发使用 `feat/<topic>`，修复使用 `fix/<topic>`。
-- 提交使用 `feat:`、`fix:`、`docs:`、`chore:` 等前缀，范围保持清楚。
-- 提交前检查 `git diff --check`、实际 diff 和 `git status --short`，避免提交用户路径记录、快捷方式、备份或凭据。
-- NuGet 依赖精确版本与锁文件一同提交，检查及打包采用 locked restore。升级依赖时显式重新生成锁文件并同步许可原文。
-- 公开仓库为 [BOCINPITY/Forma](https://github.com/BOCINPITY/Forma)，默认分支 `main`；通过 PR 协作。发布标签使用 `v<版本>`，由 [GitHub Actions](releases.md) 自动打包与上传附件。
-
-## 版本
-
-当前 `0.1.0-preview.9` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。产品名与应用程序集名为 Forma；源码命名空间、解决方案名和旧数据目录沿用 IconAdapt。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
-
-项目采用 MIT 协议，当前对外提供预发布便携包。稳定发布前仍需人工验证真实桌面更新、多 DPI、更多应用图标和文件权限场景；安装程序、代码签名与自动更新尚未实施。发布流程见 [构建与发布](releases.md)。
-
-## 验证程序
-
-- `IconAdapt.Imaging.Smoke`：边界、原生帧选择、预乘 Alpha 采样、细线和小字、圆角合成、ICO / WIC 与并发。
-- `IconAdapt.Windows.Smoke`：真实 COM 操作、属性保留、备份 / 恢复、多批次、文件冲突和错误恢复。
-- `IconAdapt.Integration.Smoke`：提取 → 渲染 → 应用 → 重启后读取历史 → 恢复，并检查未选中项目和启动属性。
-- `IconAdapt.App.Smoke`：WPF 预览逐像素等于导出帧、原图不放大、切尺寸不重渲染、旧设置保护，以及紧凑窗口 / 恢复入口与长结果 / 空状态的布局检查与合成数据截图；验证恢复后的指纹刷新和结果保留。
-
-四者无需额外测试框架，失败返回非零退出码。输出图片、ICO、快捷方式和记录保留在 `.local` 便于调查，不会提交。
-
-UI 测试通过仅向测试程序集开放的构造入口加载真实 BAML 资源，并拦截 WPF 自动排队的 `OnStartup`，禁止创建正式桌面服务或解析测试参数。`IconAdapt.App.Smoke --motion` 只运行动效检查；`--motion` 不是 Forma 的启动参数。布局检查禁用动效以检查最终边界，动效检查单独验证过渡与最终像素。
-
-`IconAdapt.App.Smoke --desktop-preview` 单独检查整体预览，输出压力状态及六枚健康合成图标的浅 / 深截图；此参数同样只属于测试程序，不能传给 Forma。图像验证中的 `ShapeAdaptationChecks` 检查形态与安全区；旧版算法基线仅保存在 `.local`，存在同设置基线时才绘制新旧对照行。
+标签必须等于 `v` 加项目版本。重跑 Release 会更新说明和同名附件。依赖或运行时升级时同步 `licenses` 和第三方声明。当前无签名、安装器或自动更新；稳定发布前仍需实际桌面、多 DPI 和权限场景验收。

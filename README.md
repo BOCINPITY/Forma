@@ -42,7 +42,7 @@
 
 **应用后保留 `%LOCALAPPDATA%\IconAdapt\`。** 这里保存 ICO、备份和操作记录，快捷方式会持续引用生成的 ICO。卸载或清理数据前先恢复图标。Forma 原名 IconAdapt，沿用旧数据目录以保持已有恢复链可用。
 
-支持桌面 / 指定文件夹中的普通 `.lnk`，当前仅适配可访问 `.exe` 的应用入口；扫描不递归。不覆盖任务栏、开始菜单、文件关联、系统特殊图标或商店应用专用入口。公共桌面权限不足会逐项提示，不自动提权、重启 Explorer 或清理全局缓存。低清原图无法凭空补出细节；更多限制见[使用说明](docs/user-guide.md)和[清晰度设计](docs/icon-quality.md)。
+支持桌面 / 指定文件夹中的普通 `.lnk`，当前仅适配可访问 `.exe` 的应用入口；扫描不递归。不覆盖任务栏、开始菜单、文件关联、系统特殊图标或商店应用专用入口。公共桌面权限不足会逐项提示，不自动提权、重启 Explorer 或清理全局缓存。低清原图无法凭空补出细节；更多限制见[使用说明](docs/user-guide.md)。
 
 ## 从源码构建
 
@@ -71,20 +71,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 - [Release](.github/workflows/release.yml)：推送 `v<版本>` 标签，或手动指定已有标签，自动打包并上传 GitHub Release。标签必须与 `Directory.Build.props` 中的版本一致。
 - 带 `preview` 等后缀的版本自动标记为 **Pre-release**；目前仅提供 Windows x64 自包含 ZIP 和 SHA-256 校验文件。
 
-具体发布步骤和权限见[发布说明](docs/releases.md)。Actions 成功状态以仓库页面为准，构建通过不代表所有真实桌面效果均已验收。
+具体操作见[构建与发布](docs/development.md)。
 
 ## 文档与贡献
 
 | 中文 | English |
 | --- | --- |
-| [文档导航](docs/README.md) | [Documentation](docs/en/README.md) |
 | [使用说明](docs/user-guide.md) | [User guide](docs/en/user-guide.md) |
-| [开发指南](docs/development.md) | [Development](docs/en/development.md) |
-| [技术架构](docs/architecture.md) | [Architecture](docs/en/architecture.md) |
-| [清晰度与形态适配](docs/icon-quality.md) | [Icon quality](docs/en/icon-quality.md) |
-| [发布说明](docs/releases.md) | [Release guide](docs/releases.md#english) |
+| [构建与发布](docs/development.md) | [Build and release](docs/en/development.md) |
 
-另见[界面设计与动效](docs/ui-design.md)、[品牌与代码图标](docs/brand.md)、[验证记录](docs/verification.md)、[路线图](docs/roadmap.md)和[变更记录](CHANGELOG.md)。欢迎通过 [Issues](https://github.com/BOCINPITY/Forma/issues) 与 PR 反馈，提交前请阅读[贡献指南](CONTRIBUTING.md)。
+欢迎通过 [Issues](https://github.com/BOCINPITY/Forma/issues) 与 PR 反馈，提交前请阅读[贡献指南](CONTRIBUTING.md)。版本变化见 [CHANGELOG](CHANGELOG.md)。
 
 ## 许可
 

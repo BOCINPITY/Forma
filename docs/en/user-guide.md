@@ -1,6 +1,6 @@
 # Forma user guide
 
-[Documentation](README.md) · [简体中文](../user-guide.md)
+[Project home](https://github.com/BOCINPITY/Forma) · [简体中文](../user-guide.md)
 
 Forma adapts ordinary Windows application shortcuts. You can compare icons before applying a style, update a selected group, and restore their original icon references later. This guide describes **0.1.0-preview.9**. The current interface uses Chinese labels; the key controls are identified below.
 
@@ -55,13 +55,11 @@ Click **Restore default icons / 恢复默认图标** at the top and confirm. For
 
 Forma checks for external edits before restoring. A conflict preserves the current shortcut and stops earlier restoration layers for that path; other shortcuts continue. A shortcut counts as restored only when all its adaptation layers have been undone. Inspect Operation details, resolve permission, file-lock, or conflict issues, and retry. Restoration can continue after interruption or restart.
 
-![Restoration results displayed within the workspace](../images/restore-results.png)
-
 ## Keep the data directory
 
 `%LOCALAPPDATA%\IconAdapt\` contains generated ICOs, original shortcut backups, settings, and operation records. **Keep it while adapted icons are in use.** Shortcuts continuously reference these ICO files. Closing Forma or moving its program folder does not restore icons.
 
-Before removing Forma's data, restore default icons, check that all results succeeded, and confirm the desktop appearance. See [architecture](architecture.md#storage) for the subdirectories. Backups and records can contain local paths and shortcut information; keep them out of public issue attachments.
+Before removing Forma's data, restore default icons, check that all results succeeded, and confirm the desktop appearance. Backups and records can contain local paths and shortcut information; keep them out of public issue attachments.
 
 ## Common problems
 
@@ -73,15 +71,3 @@ Before removing Forma's data, restore default icons, check that all results succ
 | Administrator retry still fails | Check read-only attributes, file locks, and ACL restrictions. If you run as a different Windows account, that account has a separate default data directory and does not automatically see your history. |
 | Icon has not refreshed | Wait or refresh manually. Forma does not automatically stop or restart Explorer or delete the global icon cache. |
 | Taskbar icon stays unchanged | Taskbar and running application icons are outside the supported scope. |
-
-An old preview could report a protected-property mismatch when Windows normalized a relative-path flag. Current versions permit that normalization while preserving actual launch properties. Upgrade, rescan, and retry only affected items; retain operation records for recovery. More detail is available in the [Chinese troubleshooting guide](../troubleshooting-apply.md).
-
-## Isolated developer launch
-
-From a source checkout, use folders containing your own test shortcuts and a separate data root:
-
-```powershell
-.\scripts\run.ps1 -ScanFolder '.\.local\demo' -DataRoot '.\.local\demo-data'
-```
-
-The automated checks write only to isolated test shortcuts under `.local`; the integration check also performs a read-only scan of the actual desktop. See [development](development.md).

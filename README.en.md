@@ -42,7 +42,7 @@ Current version: **`0.1.0-preview.9`**, Windows x64, primarily tested on Windows
 
 **Keep `%LOCALAPPDATA%\IconAdapt\` after applying icons.** It stores persistent ICO files, backups and operation records. Shortcuts continue to reference those ICO files. Restore icons before deleting app data. Forma was previously named IconAdapt and retains its data directory for compatibility.
 
-Supported inputs are ordinary `.lnk` application shortcuts on the desktop or in a selected folder, currently pointing to accessible `.exe` files. Scans are not recursive. Taskbar icons, Start menu entries, file associations, special Shell icons and dedicated Store app entries are outside the current scope. Permission failures are reported per item; Forma does not elevate itself, restart Explorer or clear the global icon cache. Low-resolution sources cannot regain missing detail. See the [user guide](docs/en/user-guide.md) and [quality notes](docs/en/icon-quality.md).
+Supported inputs are ordinary `.lnk` application shortcuts on the desktop or in a selected folder, currently pointing to accessible `.exe` files. Scans are not recursive. Taskbar icons, Start menu entries, file associations, special Shell icons and dedicated Store app entries are outside the current scope. Permission failures are reported per item; Forma does not elevate itself, restart Explorer or clear the global icon cache. Low-resolution sources cannot regain missing detail. See the [user guide](docs/en/user-guide.md).
 
 ## Build from source
 
@@ -71,20 +71,16 @@ Output: `artifacts\Forma-<version>-win-x64\`, plus a ZIP and `.sha256` checksum.
 - [Release](.github/workflows/release.yml) builds a pushed `v<version>` tag, or an existing tag selected manually, and uploads a GitHub Release. The tag must match `Directory.Build.props`.
 - Versions with a prerelease suffix, including `preview`, are marked **Pre-release**. Packages currently target Windows x64 and include a SHA-256 checksum.
 
-See the [release guide](docs/releases.md#english). Check the repository's Actions page for actual run results; a successful build does not prove every real desktop scenario has been verified.
+See [Build and release](docs/en/development.md) for instructions.
 
 ## Documentation and contributions
 
 | English | 中文 |
 | --- | --- |
-| [Documentation index](docs/en/README.md) | [文档导航](docs/README.md) |
 | [User guide](docs/en/user-guide.md) | [使用说明](docs/user-guide.md) |
-| [Development](docs/en/development.md) | [开发指南](docs/development.md) |
-| [Architecture](docs/en/architecture.md) | [技术架构](docs/architecture.md) |
-| [Icon quality](docs/en/icon-quality.md) | [清晰度与形态适配](docs/icon-quality.md) |
-| [Release guide](docs/releases.md#english) | [发布说明](docs/releases.md) |
+| [Build and release](docs/en/development.md) | [构建与发布](docs/development.md) |
 
-Chinese documents also cover [UI design and motion](docs/ui-design.md), [the code-drawn brand](docs/brand.md), [historical verification](docs/verification.md), [the roadmap](docs/roadmap.md) and [the changelog](CHANGELOG.md). Reports and pull requests are welcome; read [Contributing](CONTRIBUTING.md#english) before submitting changes.
+Reports and pull requests are welcome; read [Contributing](CONTRIBUTING.md#english) before submitting changes. Version changes are summarized in the [changelog](CHANGELOG.md).
 
 ## License
 

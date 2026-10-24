@@ -2,7 +2,7 @@
 
 [English](#english) · [项目首页](https://github.com/BOCINPITY/Forma)
 
-欢迎提交问题报告、设计改进和修复。请先看 [支持范围](docs/product.md) 与 [开发指南](docs/development.md)，大的功能建议先开 Issue 说明使用场景。
+欢迎提交问题报告、设计改进和修复。请先看 [使用说明](docs/user-guide.md) 与 [构建指南](docs/development.md)，大的功能建议先开 Issue 说明使用场景。
 
 ## 提交问题
 
@@ -19,7 +19,7 @@
 
 ## English
 
-Bug reports, design improvements and focused fixes are welcome. Read the [scope](docs/product.md) and [development guide](docs/en/development.md); open an issue to discuss substantial features first.
+Bug reports, design improvements and focused fixes are welcome. Read the [user guide](docs/en/user-guide.md) and [build guide](docs/en/development.md); open an issue to discuss substantial features first.
 
 Include your Windows and Forma versions, preview size, style, reproduction steps and expected behavior. For quality reports, include actual 32 / 48px comparisons. Prefer synthetic reproductions and remove personal paths, launch arguments and private application details from screenshots or logs. Do not upload real shortcuts, backups or operation records.
 
