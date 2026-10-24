@@ -1,6 +1,6 @@
 using System.Drawing;
 using System.Reflection;
-using System.Runtime.InteropServices;
+using static IconAdapt.Tests.ShortcutFixture;
 using System.Security.Cryptography;
 using System.Text.Json;
 using IconAdapt.Core;
@@ -27,6 +27,7 @@ void Check(bool condition, string name)
     assertions++;
     Console.WriteLine("PASS: " + name);
 }
+Check(initialLaunch.Arguments == "/c echo 测试" && initialLaunch.Description == "Smoke 中文说明", "Unicode fixture properties round-trip without system code-page conversion");
 using var iconStream = new MemoryStream();
 SystemIcons.Application.Save(iconStream);
 byte[] ico = iconStream.ToArray();
@@ -362,75 +363,6 @@ static byte[] PngIco(params (int Size, byte[] Png)[] frames)
     return stream.ToArray();
 }
 
-// WScript.Shell is only the test fixture author/reader. Production uses IShellLink on a dedicated STA.
-static void CreateLink(string path, string target, string args, string working, string description, string icon)
-{
-    Sta(() =>
-    {
-        object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
-        object? instance = null;
-        try
-        {
-            dynamic script = shell;
-            instance = script.CreateShortcut(path);
-            dynamic link = instance;
-            link.TargetPath = target;
-            link.Arguments = args;
-            link.WorkingDirectory = working;
-            link.Description = description;
-            if (icon.Length > 0) link.IconLocation = icon;
-            link.Save();
-        }
-        finally
-        {
-            if (instance is not null) Marshal.FinalReleaseComObject(instance);
-            Marshal.FinalReleaseComObject(shell);
-        }
-    });
-}
-static (string Target, string Arguments, string WorkingDirectory, string Description, string Icon) ReadLink(string path)
-{
-    (string, string, string, string, string) result = default;
-    Sta(() =>
-    {
-        object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
-        object? instance = null;
-        try
-        {
-            dynamic script = shell;
-            instance = script.CreateShortcut(path);
-            dynamic link = instance;
-            result = ((string)link.TargetPath, (string)link.Arguments, (string)link.WorkingDirectory, (string)link.Description, (string)link.IconLocation);
-        }
-        finally
-        {
-            if (instance is not null) Marshal.FinalReleaseComObject(instance);
-            Marshal.FinalReleaseComObject(shell);
-        }
-    });
-    return result;
-}
-static void EditArguments(string path, string arguments)
-{
-    Sta(() =>
-    {
-        object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
-        object? instance = null;
-        try
-        {
-            dynamic script = shell;
-            instance = script.CreateShortcut(path);
-            dynamic link = instance;
-            link.Arguments = arguments;
-            link.Save();
-        }
-        finally
-        {
-            if (instance is not null) Marshal.FinalReleaseComObject(instance);
-            Marshal.FinalReleaseComObject(shell);
-        }
-    });
-}
 static void Sta(Action action)
 {
     Exception? error = null;

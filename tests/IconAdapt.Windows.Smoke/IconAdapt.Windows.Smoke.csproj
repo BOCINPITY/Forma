@@ -5,6 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\Shared\ShortcutFixture.cs" Link="ShortcutFixture.cs" />
     <ProjectReference Include="..\..\src\IconAdapt.Windows\IconAdapt.Windows.csproj" />
   </ItemGroup>
 </Project>

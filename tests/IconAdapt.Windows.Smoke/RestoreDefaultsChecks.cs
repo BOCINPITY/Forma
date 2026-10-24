@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+using IconAdapt.Tests;
 using System.Security.Cryptography;
 using System.Text.Json;
 using IconAdapt.Core;
@@ -161,45 +161,13 @@ internal static class RestoreDefaultsChecks
     private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
     private static void Save(string storage, OperationBatch batch) => File.WriteAllText(
         Path.Combine(storage, "operations", batch.Id + ".json"), JsonSerializer.Serialize(batch));
-    private static void CreateLink(string path) => WithLink(path, link =>
+    private static void CreateLink(string path)
     {
         string target = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
-        link.TargetPath = target;
-        link.Arguments = "/c echo defaults-fixture";
-        link.WorkingDirectory = Path.GetDirectoryName(path)!;
-        link.Description = "Restore defaults fixture";
-        link.IconLocation = target + ",0";
-        link.Save();
-    });
+        ShortcutFixture.CreateLink(path, target, "/c echo defaults-fixture", Path.GetDirectoryName(path)!,
+            "Restore defaults fixture", target + ",0");
+    }
     private static (string Target, string Args, string Working, string Description, string Icon) ReadLink(string path)
-    {
-        (string, string, string, string, string) result = default;
-        WithLink(path, link => result = ((string)link.TargetPath, (string)link.Arguments, (string)link.WorkingDirectory,
-            (string)link.Description, (string)link.IconLocation));
-        return result;
-    }
-    private static void EditArguments(string path, string args) => WithLink(path, link => { link.Arguments = args; link.Save(); });
-    private static void WithLink(string path, Action<dynamic> action)
-    {
-        Exception? error = null;
-        var thread = new Thread(() =>
-        {
-            object? shell = null, instance = null;
-            try
-            {
-                shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!);
-                instance = ((dynamic)shell!).CreateShortcut(path);
-                action((dynamic)instance);
-            }
-            catch (Exception ex) { error = ex; }
-            finally
-            {
-                if (instance != null) Marshal.FinalReleaseComObject(instance);
-                if (shell != null) Marshal.FinalReleaseComObject(shell);
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start(); thread.Join();
-        if (error != null) throw error;
-    }
+        => ShortcutFixture.ReadLink(path);
+    private static void EditArguments(string path, string args) => ShortcutFixture.EditArguments(path, args);
 }

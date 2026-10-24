@@ -4,6 +4,7 @@
     <TargetFramework>net10.0-windows</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\Shared\ShortcutFixture.cs" Link="ShortcutFixture.cs" />
     <Compile Include="..\..\src\IconAdapt.App\Diagnostics\OperationFeedback.cs" Link="OperationFeedback.cs" />
     <Compile Include="..\..\src\IconAdapt.App\Controls\PixelImageGeometry.cs" Link="PixelImageGeometry.cs" />
     <ProjectReference Include="..\..\src\IconAdapt.Imaging\IconAdapt.Imaging.csproj" />

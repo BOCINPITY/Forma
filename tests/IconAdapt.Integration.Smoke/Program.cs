@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+using IconAdapt.Tests;
 using System.Security.Cryptography;
 using IconAdapt.Core;
 using IconAdapt.Imaging;
@@ -85,41 +85,13 @@ internal static class Program
     }
 
     private static void CreateShortcut(string path, string target, string workingDirectory)
-    {
-        dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell", true)!)!;
-        object? linkObject = null;
-        try
-        {
-            dynamic link = shell.CreateShortcut(path);
-            linkObject = link;
-            link.TargetPath = target;
-            link.Arguments = "\"测试 文件.txt\"";
-            link.WorkingDirectory = workingDirectory;
-            link.Description = "IconAdapt integration fixture";
-            link.Save();
-        }
-        finally
-        {
-            if (linkObject is not null) Marshal.FinalReleaseComObject(linkObject);
-            Marshal.FinalReleaseComObject(shell);
-        }
-    }
+        => ShortcutFixture.CreateLink(path, target, "\"测试 文件.txt\"", workingDirectory,
+            "IconAdapt integration fixture", "");
 
     private static ShortcutProperties ReadProperties(string path)
     {
-        dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell", true)!)!;
-        object? linkObject = null;
-        try
-        {
-            dynamic link = shell.CreateShortcut(path);
-            linkObject = link;
-            return new ShortcutProperties((string)link.TargetPath, (string)link.Arguments, (string)link.WorkingDirectory, (string)link.Description, (string)link.IconLocation);
-        }
-        finally
-        {
-            if (linkObject is not null) Marshal.FinalReleaseComObject(linkObject);
-            Marshal.FinalReleaseComObject(shell);
-        }
+        var link = ShortcutFixture.ReadLink(path);
+        return new(link.Target, link.Arguments, link.WorkingDirectory, link.Description, link.Icon);
     }
 
     private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));

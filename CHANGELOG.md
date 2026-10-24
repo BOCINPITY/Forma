@@ -14,6 +14,7 @@
 - GitHub Actions 自动构建检查并上传便携包；版本标签或手动运行发布 ZIP / SHA-256，预览版本标记为 Pre-release。
 - 便携包包含可离线查看的双语图文文档、MIT LICENSE、第三方许可和构建信息。
 - MIT-licensed public source, illustrated Chinese and English documentation, automated Windows builds and tag-based prereleases with ZIP / SHA-256 assets.
+- 测试快捷方式使用独立的 Unicode Shell COM 夹具，修正英文 Windows runner 上中文路径的创建失败；产品写入逻辑不变。 / Unicode test fixtures also support Chinese paths on English Windows runners.
 
 ### 整体预览与形态适配
 
