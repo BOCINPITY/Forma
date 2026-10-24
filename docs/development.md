@@ -1,57 +1,51 @@
 # 开发与版本管理
 
-## 环境
+## 环境与命令
 
-- Windows；首轮兼容性目标为 Windows 11，尚未完成实机验证。
-- .NET 10 SDK（仅安装 Desktop Runtime 不足以编译）。
-- Git。
-- 可选：支持 .NET 10 的 Visual Studio 或其他 C# 编辑器。
-
-终端默认 PowerShell。运行 `Get-Command dotnet` 和 `dotnet --list-sdks` 确认 SDK 可用。若命令不存在，安装 SDK 并重新打开终端；不把“未执行”记作构建通过。
-
-## 本地命令
+Windows x64、Git 和 .NET 10 SDK；首轮目标 Windows 11。终端使用 PowerShell。
 
 ```powershell
 Set-Location 'E:\local\IconAdapt'
-.\scripts\check.ps1
-dotnet run --project .\src\IconAdapt.App\IconAdapt.App.csproj
-```
-
-如果本机执行策略阻止脚本，可以先阅读脚本，再在本次进程中执行：
-
-```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1 -Zip
 ```
 
-检查脚本执行 restore 和 Release 构建。当前没有测试工程，构建成功不代表桌面修改能力已验证。后续对渲染边界、恢复状态机等关键逻辑添加有意义的自动化测试。
+`bootstrap.ps1` 从微软官方元数据定位固定 SDK 10.0.402，下载 Windows x64 ZIP，验证 SHA-512 后解压到 `.local\dotnet`。不提权、不改系统 PATH。其余脚本优先用本地 SDK，找不到时再查 PATH。
 
-## Git 流程
+`check.ps1` 执行解决方案 restore、Release build 和三个验证程序；`-SkipSmoke` 仅构建。测试仅创建 / 修改 `.local` 中的快捷方式；集成测试还会只读扫描实际桌面，控制台仅输出计数。不能把构建通过视作桌面效果已验证。
 
-- `main`：保存已审查的项目基线，提交必须标明验证状态。
-- 功能开发使用 `feat/<topic>`，修复使用 `fix/<topic>`，文档使用 `docs/<topic>`。
-- 提交采用 `feat:`、`fix:`、`docs:`、`chore:` 等前缀，范围尽量单一。
-- 提交前检查 `git diff --check`、`git diff` 和 `git status --short`，确认不含用户数据、凭据和生成文件。
-- Git 负责本地项目历史；远程备份须在配置远程仓库并推送后才成立。目前未配置远程。
+开发便携版由 `publish.ps1` 生成到 `artifacts\IconAdapt-win-x64`，包含运行时、原生库、使用说明、许可和构建信息。`-Zip` 额外生成 ZIP 与 SHA-256 文件。不要提交 SDK、输出包或用户数据。
+
+## 隔离启动与截图
 
 ```powershell
-git switch -c feat/desktop-scan
-git status --short
-git diff --check
-git add src docs CHANGELOG.md
-git commit -m 'feat: add desktop shortcut discovery'
+.\scripts\run.ps1 -ScanFolder 'E:\local\IconAdapt\.local\demo' -DataRoot 'E:\local\IconAdapt\.local\demo-data'
 ```
 
-示例提交只能在对应功能实际完成并检查后执行。
+直接运行应用还可传 `--scan-folder <绝对路径>`、`--data-root <绝对路径>`、`--smoke-ui <输出 PNG 路径>`。截图模式等待扫描及渲染完成后保存窗口内容并退出；失败时输出 `.error.txt`。它不执行应用或恢复。
 
-## 版本与发布
+真实桌面验证时只读扫描无需写入；应用须由用户在界面选择并确认。自动验证坚持使用隔离测试目录。
 
-- 当前为 `0.1.0-dev`，不是已发布版本。
-- 版本号来源是 `Directory.Build.props`；显示版本变更时同步窗口中的版本说明。
-- 功能和行为变化同步维护 CHANGELOG.md。
-- 发布前完成构建、关键流程测试、恢复验证和打包验证，再创建 `vX.Y.Z` 标签。
-- 发布方式、签名、安装包、更新机制和许可证仍待确定，当前未生成发布包。
-- 不自动推送、不自动创建远程仓库。
+## Git 约定
 
-## 验证原则
+- `main` 保存项目基线，功能开发使用 `feat/<topic>`，修复使用 `fix/<topic>`。
+- 提交使用 `feat:`、`fix:`、`docs:`、`chore:` 等前缀，范围保持清楚。
+- 提交前检查 `git diff --check`、实际 diff 和 `git status --short`，避免提交用户路径记录、快捷方式、备份或凭据。
+- NuGet 依赖精确版本与锁文件一同提交，检查及打包采用 locked restore。升级依赖时显式重新生成锁文件并同步许可原文。
+- 当前没有远程仓库，不自动创建远程或推送。本地 Git 历史不等于远程备份。
 
-桌面操作先使用临时测试目录和自建快捷方式。确认备份、原属性保留、部分失败和恢复行为后，再验证真实桌面。每次验证记录环境、操作、结果及限制，不把静态检查当作运行测试。
+## 版本
+
+当前 `0.1.0-preview.1` 是开发预览版本，版本来源为 `Directory.Build.props`，界面读取程序集信息。行为变化同步维护 CHANGELOG.md；架构变化同步 docs。
+
+正式发布前仍需人工验证真实桌面更新、多 DPI、更多应用图标和文件权限场景，明确安装 / 卸载、代码签名、许可证和自动更新策略。没有正式发布授权时不创建版本标签。
+
+## 验证程序
+
+- `IconAdapt.Imaging.Smoke`：边界裁切、渲染参数、透明图、ICO 结构、WIC 解码与并发确定性。
+- `IconAdapt.Windows.Smoke`：真实 COM 操作、属性保留、备份 / 恢复、多批次、文件冲突和错误恢复。
+- `IconAdapt.Integration.Smoke`：提取 → 渲染 → 应用 → 重启后读取历史 → 恢复，并检查未选中项目和启动属性。
+
+三者无需额外测试框架，失败返回非零退出码。输出图片、ICO、快捷方式和记录保留在 `.local` 便于调查，不会提交。

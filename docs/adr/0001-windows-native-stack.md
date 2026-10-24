@@ -1,7 +1,7 @@
 # ADR 0001：采用 Windows 原生桌面技术栈
 
 - 日期：2026-10-24
-- 状态：已采纳，尚待原型验证
+- 状态：已采纳，开发预览版完成构建与模块验证
 
 ## 背景
 
@@ -9,9 +9,9 @@
 
 ## 决策
 
-采用 C# / .NET 10、WPF / XAML。图像引擎计划采用 SkiaSharp，Shell 通过 COM 和必要的 Win32 互操作访问。配置及操作记录先用 JSON，不引入数据库或服务端。
+采用 C# / .NET 10、WPF / XAML。图像引擎采用 SkiaSharp 4.153.1，Shell 通过 COM 和必要的 Win32 互操作访问。配置及操作记录使用 JSON，不引入数据库或服务端。
 
-.NET 10 采用稳定 SDK，global.json 允许在 10.0 系列中使用较新的 feature band。第三方包在实际接入时选择并固定经过验证的版本，不在初始化阶段添加未使用依赖。
+.NET 10 采用稳定 SDK，global.json 允许在 10.0 系列中使用较新的 feature band。项目本地 SDK 为 10.0.402。第三方包精确固定版本，同时提交 packages.lock.json。
 
 ## 理由与代价
 
