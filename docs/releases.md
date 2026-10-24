@@ -6,6 +6,8 @@ GitHub Actions 的 **Build** 工作流在 `main` 推送、面向 `main` 的拉�
 
 发布步骤：
 
+CI 使用独立 Unicode Shell COM 测试夹具，支持英文系统下的中文路径；构建前将临时 runner 会话设为 1920 × 1080，避免默认低分辨率限制 WPF 窗口布局检查。`prepare-ci-desktop.ps1` 仅允许在 GitHub Actions 环境运行，不会调整本机开发显示设置。
+
 1. 更新 `Directory.Build.props` 中的版本、依赖锁文件及 `CHANGELOG.md`；需要时同步文档、运行时和第三方许可。提交到 `main`，确认 Build 通过。
 2. 创建并推送与版本完全一致的标签，例如版本 `0.1.0-preview.9` 对应 `v0.1.0-preview.9`。
 3. **Release** 工作流从该标签构建、检查并打包，然后创建 GitHub Release、上传 ZIP 和 `.zip.sha256`。含 `-` 的版本标记为预发布。工作流不会创建标签。
@@ -21,6 +23,8 @@ GitHub Actions 的 **Build** 工作流在 `main` 推送、面向 `main` 的拉�
 The **Build** GitHub Actions workflow runs on pushes to `main`, pull requests targeting `main`, and manual dispatch. It uses a Windows 2025 runner and .NET SDK 10.0.402 to restore locked dependencies, build Release, run the existing four smoke suites, and package a self-contained Windows x64 ZIP with its SHA-256 checksum. The SDK matches local `bootstrap.ps1` and the bundled .NET 10.0.13 license notices. Build artifacts expire after 14 days.
 
 To release:
+
+Tests use an independent Unicode Shell COM fixture so Chinese paths work on English Windows. Before checking WPF layouts, the disposable runner session is set to 1920 × 1080 to avoid its small default display constraining windows. `prepare-ci-desktop.ps1` requires GitHub Actions and does not change a developer's display settings.
 
 1. Update the version in `Directory.Build.props`, dependency lock files, and `CHANGELOG.md`. Update documentation, runtime and third-party notices as needed. Commit to `main` and confirm Build succeeds.
 2. Create and push a tag matching that version exactly: for example, `v0.1.0-preview.9` for version `0.1.0-preview.9`.
